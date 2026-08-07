@@ -24,3 +24,6 @@ htmlcov/
 dist/
 build/
 *.egg-info/
+
+# JWT signing keys (local only — never commit)
+keys/

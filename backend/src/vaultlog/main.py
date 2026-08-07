@@ -8,7 +8,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from vaultlog.infrastructure.database.engine import build_engine, build_session_factory
+from vaultlog.presentation.api.v1.auth import router as auth_router
 from vaultlog.presentation.api.v1.health import router as health_router
+from vaultlog.presentation.exception_handlers import register_exception_handlers
 from vaultlog.shared.config import get_settings
 from vaultlog.shared.logging import configure_logging
 
@@ -21,8 +23,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     logger = structlog.get_logger()
 
-    engine = build_engine(settings.database_url)
-    app.state.session_factory = build_session_factory(engine)
+    app_engine = build_engine(settings.database_url)
+    identity_engine = build_engine(settings.migration_database_url)
+    app.state.session_factory = build_session_factory(app_engine)
+    app.state.identity_session_factory = build_session_factory(identity_engine)
 
     logger.info(
         "application.starting",
@@ -32,7 +36,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     yield
 
-    await engine.dispose()
+    await identity_engine.dispose()
+    await app_engine.dispose()
     logger.info("application.stopping", service=settings.service_name)
 
 
@@ -60,7 +65,9 @@ def create_app() -> FastAPI:
         allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
     )
 
+    register_exception_handlers(app)
     app.include_router(health_router, prefix="/api/v1")
+    app.include_router(auth_router, prefix="/api/v1")
 
     return app
 

@@ -33,6 +33,14 @@ class Settings(BaseSettings):
     migration_database_user: str = "vaultlog_owner"
     migration_database_password: str
 
+    jwt_issuer: str = "vaultlog"
+    jwt_audience: str = "vaultlog-api"
+    jwt_private_key_pem_path: str = "./keys/jwt-private.pem"
+    jwt_public_key_pem_path: str = "./keys/jwt-public.pem"
+    access_token_ttl_seconds: int = 600
+    refresh_token_ttl_days: int = 30
+    refresh_cookie_secure: bool = True
+
     def build_database_url(self, user: str, password: str) -> str:
         return PostgresDsn.build(
             scheme="postgresql+asyncpg",

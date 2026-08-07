@@ -7,7 +7,10 @@ from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-from vaultlog.infrastructure.database import models  # noqa: F401 — registers tables
+from vaultlog.infrastructure.database import (
+    identity_models,  # noqa: F401 — registers tables
+    models,  # noqa: F401 — registers tables
+)
 from vaultlog.infrastructure.database.base import Base
 from vaultlog.shared.config import get_settings
 

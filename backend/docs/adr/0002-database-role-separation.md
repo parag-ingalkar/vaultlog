@@ -11,10 +11,14 @@ provides no real isolation guarantee.
 
 ## Decision
 
-- vaultlog_owner: owns schema, runs migrations via Alembic, never used by the app.
-- vaultlog_app: NOBYPASSRLS, DML grants only, used by the FastAPI application.
-- Break-glass admin access is a separate future role with BYPASSRLS,
-  used only through an isolated code path.
+- vaultlog_owner: owns schema, runs migrations via Alembic, and is the only
+  role with `BYPASSRLS`. The application uses it solely through the isolated
+  `IdentityUnitOfWork` for pre-tenant operations (register, login, refresh,
+  logout) where membership/organization must be reachable without a tenant GUC.
+- vaultlog_app: NOBYPASSRLS, DML grants only, used by the FastAPI application
+  for all tenant-scoped work.
+- Break-glass admin access beyond identity remains a separate future concern;
+  do not reuse the identity UoW for tenant data.
 
 ## Consequences
 
