@@ -19,9 +19,10 @@ class Settings(BaseSettings):
     debug: bool = False
     log_level: str = "INFO"
 
-    host: str = "localhost"
+    host: str = "0.0.0.0"  # noqa: S104
     port: int = Field(default=8000, ge=1, le=65535)
     cors_origins: str = "http://localhost:5173"
+    service_name: str = "vaultlog-api"
 
     database_host: str = "localhost"
     database_port: int = Field(default=5432, ge=1, le=65535)
@@ -29,20 +30,30 @@ class Settings(BaseSettings):
     database_user: str = "vaultlog_app"
     database_password: str
 
-    service_name: str = "vaultlog-api"
+    migration_database_user: str = "vaultlog_owner"
+    migration_database_password: str
 
-    @property
-    def database_url(self) -> PostgresDsn:
+    def build_database_url(self, user: str, password: str) -> str:
         return PostgresDsn.build(
             scheme="postgresql+asyncpg",
-            username=self.database_user,
-            password=self.database_password,
+            username=user,
+            password=password,
             host=self.database_host,
             port=self.database_port,
             path=self.database_name,
+        ).unicode_string()
+
+    @property
+    def database_url(self) -> str:
+        return self.build_database_url(self.database_user, self.database_password)
+
+    @property
+    def migration_database_url(self) -> str:
+        return self.build_database_url(
+            self.migration_database_user, self.migration_database_password
         )
 
 
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()  # type: ignore[call-arg]
+    return Settings()

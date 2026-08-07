@@ -7,6 +7,7 @@ import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from vaultlog.infrastructure.database.engine import build_engine, build_session_factory
 from vaultlog.presentation.api.v1.health import router as health_router
 from vaultlog.shared.config import get_settings
 from vaultlog.shared.logging import configure_logging
@@ -19,6 +20,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     configure_logging(settings.log_level)
 
     logger = structlog.get_logger()
+
+    engine = build_engine(settings.database_url)
+    app.state.session_factory = build_session_factory(engine)
+
     logger.info(
         "application.starting",
         service=settings.service_name,
@@ -27,6 +32,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     yield
 
+    await engine.dispose()
     logger.info("application.stopping", service=settings.service_name)
 
 

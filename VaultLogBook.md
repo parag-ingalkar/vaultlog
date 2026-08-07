@@ -790,7 +790,7 @@ This is not bureaucracy. Six weeks from now, when you ask why tenant filtering e
 
 Before proceeding, verify all of the following:
 
-- [ ] `uv run uvicorn vaultlog.main:app --reload` starts successfully.
+- [ ] `uv run fastapi dev -e vaultlog.main:app` starts successfully.
 - [ ] `GET /api/v1/health` returns `200` and `{"status":"ok"}`.
 - [ ] `/docs` is accessible locally.
 - [ ] `docker compose up -d` starts PostgreSQL successfully.
