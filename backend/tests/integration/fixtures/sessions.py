@@ -8,15 +8,22 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from vaultlog.application.identity.use_cases import (
+    CompleteMfaLogin,
+    ConfirmTotpEnrollment,
+    DisableMfa,
     LoginUser,
     LogoutSession,
     RefreshTokens,
     RegisterUser,
+    StartTotpEnrollment,
+    StepUpVerify,
 )
 from vaultlog.infrastructure.database.identity_unit_of_work import (
     SqlAlchemyIdentityUnitOfWork,
 )
+from vaultlog.infrastructure.security.mfa import PyotpTotpVerifier
 from vaultlog.infrastructure.security.passwords import Argon2Hasher
+from vaultlog.infrastructure.security.seed_encryption import AesGcmSeedEncryptor
 from vaultlog.infrastructure.security.tokens import TokenService
 from vaultlog.shared.config import get_settings
 
@@ -61,6 +68,32 @@ def tokens() -> TokenService:
 
 
 @pytest.fixture()
+def seed_encryptor() -> AesGcmSeedEncryptor:
+    return AesGcmSeedEncryptor(get_settings())
+
+
+@pytest.fixture()
+def totp_verifier() -> PyotpTotpVerifier:
+    return PyotpTotpVerifier()
+
+
+def _mfa_kwargs(
+    identity_uow_factory,
+    seed_encryptor,
+    totp_verifier,
+    tokens,
+) -> dict:
+    settings = get_settings()
+    return {
+        "uow_factory": identity_uow_factory,
+        "seed_encryptor": seed_encryptor,
+        "totp_verifier": totp_verifier,
+        "tokens": tokens,
+        "refresh_ttl_days": settings.refresh_token_ttl_days,
+    }
+
+
+@pytest.fixture()
 def register_user(identity_uow_factory, passwords, tokens) -> RegisterUser:
     settings = get_settings()
     return RegisterUser(
@@ -102,3 +135,56 @@ def logout_session(identity_uow_factory, passwords, tokens) -> LogoutSession:
         tokens,
         settings.refresh_token_ttl_days,
     )
+
+
+@pytest.fixture()
+def start_totp_enrollment(
+    identity_uow_factory,
+    seed_encryptor,
+    totp_verifier,
+    tokens,
+) -> StartTotpEnrollment:
+    kwargs = _mfa_kwargs(identity_uow_factory, seed_encryptor, totp_verifier, tokens)
+    return StartTotpEnrollment(**kwargs)
+
+
+@pytest.fixture()
+def confirm_totp_enrollment(
+    identity_uow_factory,
+    seed_encryptor,
+    totp_verifier,
+    tokens,
+) -> ConfirmTotpEnrollment:
+    kwargs = _mfa_kwargs(identity_uow_factory, seed_encryptor, totp_verifier, tokens)
+    return ConfirmTotpEnrollment(**kwargs)
+
+
+@pytest.fixture()
+def complete_mfa_login(
+    identity_uow_factory,
+    seed_encryptor,
+    totp_verifier,
+    tokens,
+) -> CompleteMfaLogin:
+    kwargs = _mfa_kwargs(identity_uow_factory, seed_encryptor, totp_verifier, tokens)
+    return CompleteMfaLogin(**kwargs)
+
+
+@pytest.fixture()
+def step_up_verify(
+    identity_uow_factory,
+    seed_encryptor,
+    totp_verifier,
+    tokens,
+) -> StepUpVerify:
+    return StepUpVerify(**_mfa_kwargs(identity_uow_factory, seed_encryptor, totp_verifier, tokens))
+
+
+@pytest.fixture()
+def disable_mfa(
+    identity_uow_factory,
+    seed_encryptor,
+    totp_verifier,
+    tokens,
+) -> DisableMfa:
+    return DisableMfa(**_mfa_kwargs(identity_uow_factory, seed_encryptor, totp_verifier, tokens))

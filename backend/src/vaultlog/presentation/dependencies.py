@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from enum import StrEnum
 from functools import lru_cache
 from typing import cast
 from uuid import UUID
@@ -11,19 +12,26 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from vaultlog.application.identity.use_cases import (
+    CompleteMfaLogin,
+    ConfirmTotpEnrollment,
+    DisableMfa,
     LoginUser,
     LogoutSession,
     RefreshTokens,
     RegisterUser,
+    StartTotpEnrollment,
+    StepUpVerify,
 )
 from vaultlog.application.ports.identity_unit_of_work import IdentityUnitOfWork
 from vaultlog.application.ports.tenant_context import TenantContext
-from vaultlog.domain.identity.exceptions import TokenValidationError
+from vaultlog.domain.identity.exceptions import StepUpRequiredError, TokenValidationError
 from vaultlog.infrastructure.database.identity_unit_of_work import (
     SqlAlchemyIdentityUnitOfWork,
 )
 from vaultlog.infrastructure.database.unit_of_work import SqlAlchemyUnitOfWork
+from vaultlog.infrastructure.security.mfa import PyotpTotpVerifier
 from vaultlog.infrastructure.security.passwords import Argon2Hasher
+from vaultlog.infrastructure.security.seed_encryption import AesGcmSeedEncryptor
 from vaultlog.infrastructure.security.tokens import TokenService
 from vaultlog.shared.config import Settings, get_settings
 
@@ -34,6 +42,14 @@ _unauthorized = HTTPException(
     detail="Not authenticated",
     headers={"WWW-Authenticate": "Bearer"},
 )
+
+
+class StepUpPurpose(StrEnum):
+    DELETE_VAULT = "step-up:delete-vault"
+    DELETE_SECRET = "step-up:delete-secret"
+    REMOVE_MEMBER = "step-up:remove-member"
+    MANAGE_MFA = "step-up:manage-mfa"
+    ROTATE_KEYS = "step-up:rotate-keys"
 
 
 @dataclass(frozen=True)
@@ -63,6 +79,16 @@ def get_password_hasher() -> Argon2Hasher:
 @lru_cache
 def get_token_service() -> TokenService:
     return TokenService(get_settings())
+
+
+@lru_cache
+def get_seed_encryptor() -> AesGcmSeedEncryptor:
+    return AesGcmSeedEncryptor(get_settings())
+
+
+@lru_cache
+def get_totp_verifier() -> PyotpTotpVerifier:
+    return PyotpTotpVerifier()
 
 
 def get_identity_uow_factory(
@@ -130,6 +156,86 @@ def get_logout_session(
     )
 
 
+def get_start_totp_enrollment(
+    uow_factory: Callable[[], IdentityUnitOfWork] = Depends(get_identity_uow_factory),
+    seed_encryptor: AesGcmSeedEncryptor = Depends(get_seed_encryptor),
+    totp_verifier: PyotpTotpVerifier = Depends(get_totp_verifier),
+    tokens: TokenService = Depends(get_token_service),
+    settings: Settings = Depends(get_settings),
+) -> StartTotpEnrollment:
+    return StartTotpEnrollment(
+        uow_factory,
+        seed_encryptor,
+        totp_verifier,
+        tokens,
+        settings.refresh_token_ttl_days,
+    )
+
+
+def get_confirm_totp_enrollment(
+    uow_factory: Callable[[], IdentityUnitOfWork] = Depends(get_identity_uow_factory),
+    seed_encryptor: AesGcmSeedEncryptor = Depends(get_seed_encryptor),
+    totp_verifier: PyotpTotpVerifier = Depends(get_totp_verifier),
+    tokens: TokenService = Depends(get_token_service),
+    settings: Settings = Depends(get_settings),
+) -> ConfirmTotpEnrollment:
+    return ConfirmTotpEnrollment(
+        uow_factory,
+        seed_encryptor,
+        totp_verifier,
+        tokens,
+        settings.refresh_token_ttl_days,
+    )
+
+
+def get_complete_mfa_login(
+    uow_factory: Callable[[], IdentityUnitOfWork] = Depends(get_identity_uow_factory),
+    seed_encryptor: AesGcmSeedEncryptor = Depends(get_seed_encryptor),
+    totp_verifier: PyotpTotpVerifier = Depends(get_totp_verifier),
+    tokens: TokenService = Depends(get_token_service),
+    settings: Settings = Depends(get_settings),
+) -> CompleteMfaLogin:
+    return CompleteMfaLogin(
+        uow_factory,
+        seed_encryptor,
+        totp_verifier,
+        tokens,
+        settings.refresh_token_ttl_days,
+    )
+
+
+def get_step_up_verify(
+    uow_factory: Callable[[], IdentityUnitOfWork] = Depends(get_identity_uow_factory),
+    seed_encryptor: AesGcmSeedEncryptor = Depends(get_seed_encryptor),
+    totp_verifier: PyotpTotpVerifier = Depends(get_totp_verifier),
+    tokens: TokenService = Depends(get_token_service),
+    settings: Settings = Depends(get_settings),
+) -> StepUpVerify:
+    return StepUpVerify(
+        uow_factory,
+        seed_encryptor,
+        totp_verifier,
+        tokens,
+        settings.refresh_token_ttl_days,
+    )
+
+
+def get_disable_mfa(
+    uow_factory: Callable[[], IdentityUnitOfWork] = Depends(get_identity_uow_factory),
+    seed_encryptor: AesGcmSeedEncryptor = Depends(get_seed_encryptor),
+    totp_verifier: PyotpTotpVerifier = Depends(get_totp_verifier),
+    tokens: TokenService = Depends(get_token_service),
+    settings: Settings = Depends(get_settings),
+) -> DisableMfa:
+    return DisableMfa(
+        uow_factory,
+        seed_encryptor,
+        totp_verifier,
+        tokens,
+        settings.refresh_token_ttl_days,
+    )
+
+
 async def current_principal(
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
     tokens: TokenService = Depends(get_token_service),
@@ -146,6 +252,40 @@ async def current_principal(
         session_id=claims.session_id,
         amr=claims.amr,
     )
+
+
+async def current_user(
+    principal: Principal = Depends(current_principal),
+    uow_factory: Callable[[], IdentityUnitOfWork] = Depends(get_identity_uow_factory),
+) -> tuple[Principal, str]:
+    async with uow_factory() as uow:
+        user = await uow.users.get(principal.user_id)
+        if user is None:
+            raise _unauthorized
+        return principal, user.email
+
+
+def require_step_up(purpose: StepUpPurpose) -> Callable[..., Awaitable[Principal]]:
+    async def dependency(
+        request: Request,
+        principal: Principal = Depends(current_principal),
+        tokens: TokenService = Depends(get_token_service),
+    ) -> Principal:
+        token = request.headers.get("X-Step-Up-Token")
+        if token is None:
+            raise StepUpRequiredError("Step-up authentication required")
+        try:
+            tokens.verify_step_up_token(
+                token,
+                principal.user_id,
+                principal.session_id,
+                purpose.value,
+            )
+        except TokenValidationError:
+            raise StepUpRequiredError("Step-up authentication required") from None
+        return principal
+
+    return dependency
 
 
 def get_tenant_uow(

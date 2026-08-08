@@ -19,7 +19,10 @@ def _unique_email(prefix: str = "ada") -> str:
 async def test_register_then_login_returns_token_pair(register_user, login_user) -> None:
     email = _unique_email()
     await register_user.execute(email, PASSWORD, "Acme")
-    pair = await login_user.execute(email, PASSWORD, "pytest")
+    result = await login_user.execute(email, PASSWORD, "pytest")
+    assert result.kind == "tokens"
+    assert result.pair is not None
+    pair = result.pair
     assert pair.access_token
     assert pair.refresh_token
     claims = TokenService(settings).verify_access_token(pair.access_token)
@@ -47,7 +50,9 @@ async def test_refresh_rotation_consumes_old_token(
 ) -> None:
     email = _unique_email("rotate")
     await register_user.execute(email, PASSWORD, "Acme")
-    pair1 = await login_user.execute(email, PASSWORD, "pytest")
+    login_result = await login_user.execute(email, PASSWORD, "pytest")
+    pair1 = login_result.pair
+    assert pair1 is not None
     pair2 = await refresh_tokens.execute(pair1.refresh_token)
     assert pair2.access_token and pair2.refresh_token
     assert pair2.refresh_token != pair1.refresh_token
@@ -63,7 +68,9 @@ async def test_refresh_reuse_revokes_session_family(
 ) -> None:
     email = _unique_email("reuse")
     await register_user.execute(email, PASSWORD, "Acme")
-    pair1 = await login_user.execute(email, PASSWORD, "pytest")
+    login_result = await login_user.execute(email, PASSWORD, "pytest")
+    pair1 = login_result.pair
+    assert pair1 is not None
     pair2 = await refresh_tokens.execute(pair1.refresh_token)
 
     with pytest.raises(AuthenticationError):
@@ -81,7 +88,9 @@ async def test_logout_revokes_session(
 ) -> None:
     email = _unique_email("logout")
     await register_user.execute(email, PASSWORD, "Acme")
-    pair = await login_user.execute(email, PASSWORD, "pytest")
+    login_result = await login_user.execute(email, PASSWORD, "pytest")
+    pair = login_result.pair
+    assert pair is not None
     await logout_session.execute(pair.refresh_token)
     with pytest.raises(AuthenticationError):
         await refresh_tokens.execute(pair.refresh_token)

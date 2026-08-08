@@ -39,6 +39,31 @@ class FakeTokenIssuer:
     def verify_access_token(self, token: str):  # pragma: no cover - unused in these tests
         raise NotImplementedError
 
+    def mint_challenge_token(self, user_id: uuid.UUID) -> str:
+        return f"challenge:{user_id}"
+
+    def verify_challenge_token(self, token: str) -> uuid.UUID:
+        return uuid.UUID(token.split(":")[1])
+
+    def mint_step_up_token(
+        self,
+        user_id: uuid.UUID,
+        session_id: uuid.UUID,
+        purpose: str,
+    ) -> str:
+        return f"step-up:{user_id}:{session_id}:{purpose}"
+
+    def verify_step_up_token(
+        self,
+        token: str,
+        user_id: uuid.UUID,
+        session_id: uuid.UUID,
+        purpose: str,
+    ) -> None:
+        expected = f"step-up:{user_id}:{session_id}:{purpose}"
+        if token != expected:
+            raise NotImplementedError
+
     def generate_refresh_token(self) -> str:
         self._counter += 1
         return f"refresh-raw-{self._counter}"
@@ -65,6 +90,9 @@ class FakeUserRepository:
     async def get_by_email(self, email: str) -> User | None:
         return self._store.users_by_email.get(email)
 
+    async def get(self, user_id: uuid.UUID) -> User | None:
+        return self._store.users.get(user_id)
+
     async def add(self, email: str, password_hash: str) -> User:
         user = User(
             id=uuid.uuid4(),
@@ -76,6 +104,17 @@ class FakeUserRepository:
         self._store.users[user.id] = user
         self._store.users_by_email[email] = user
         return user
+
+    async def set_mfa_enabled(self, user_id: uuid.UUID, enabled: bool) -> None:
+        user = self._store.users[user_id]
+        self._store.users[user_id] = User(
+            id=user.id,
+            email=user.email,
+            password_hash=user.password_hash,
+            is_active=user.is_active,
+            mfa_enabled=enabled,
+        )
+        self._store.users_by_email[user.email] = self._store.users[user_id]
 
 
 class FakeMembershipRepository:
@@ -242,9 +281,11 @@ async def test_register_conflict_on_duplicate_email() -> None:
 async def test_login_returns_token_pair() -> None:
     service, _ = build_service()
     await service.register("ada@example.com", "correct horse battery", "Acme")
-    pair = await service.login("ada@example.com", "correct horse battery", "pytest")
-    assert pair.access_token.startswith("access:")
-    assert pair.refresh_token.startswith("refresh-raw-")
+    result = await service.login("ada@example.com", "correct horse battery", "pytest")
+    assert result.kind == "tokens"
+    assert result.pair is not None
+    assert result.pair.access_token.startswith("access:")
+    assert result.pair.refresh_token.startswith("refresh-raw-")
 
 
 @pytest.mark.asyncio
@@ -261,7 +302,9 @@ async def test_wrong_password_and_unknown_email_same_error() -> None:
 async def test_refresh_rotation_consumes_old_token() -> None:
     service, store = build_service()
     await service.register("ada@example.com", "correct horse battery", "Acme")
-    pair1 = await service.login("ada@example.com", "correct horse battery", "pytest")
+    login_result = await service.login("ada@example.com", "correct horse battery", "pytest")
+    pair1 = login_result.pair
+    assert pair1 is not None
     pair2 = await service.refresh(pair1.refresh_token)
     assert pair2.refresh_token != pair1.refresh_token
 
@@ -277,7 +320,9 @@ async def test_refresh_rotation_consumes_old_token() -> None:
 async def test_refresh_reuse_revokes_session_family() -> None:
     service, store = build_service()
     await service.register("ada@example.com", "correct horse battery", "Acme")
-    pair1 = await service.login("ada@example.com", "correct horse battery", "pytest")
+    login_result = await service.login("ada@example.com", "correct horse battery", "pytest")
+    pair1 = login_result.pair
+    assert pair1 is not None
     pair2 = await service.refresh(pair1.refresh_token)
 
     with pytest.raises(AuthenticationError):
@@ -295,7 +340,9 @@ async def test_refresh_reuse_revokes_session_family() -> None:
 async def test_logout_revokes_session() -> None:
     service, store = build_service()
     await service.register("ada@example.com", "correct horse battery", "Acme")
-    pair = await service.login("ada@example.com", "correct horse battery", "pytest")
+    login_result = await service.login("ada@example.com", "correct horse battery", "pytest")
+    pair = login_result.pair
+    assert pair is not None
     await service.logout(pair.refresh_token)
     session = next(iter(store.sessions.values()))
     assert session.revocation_reason == "user_logout"
@@ -307,7 +354,9 @@ async def test_logout_revokes_session() -> None:
 async def test_expired_refresh_revokes_session() -> None:
     service, store = build_service()
     await service.register("ada@example.com", "correct horse battery", "Acme")
-    pair = await service.login("ada@example.com", "correct horse battery", "pytest")
+    login_result = await service.login("ada@example.com", "correct horse battery", "pytest")
+    pair = login_result.pair
+    assert pair is not None
     token_hash = FakeTokenIssuer().hash_refresh_token(pair.refresh_token)
     token_id = store.refresh_by_hash[token_hash]
     token = store.refresh_tokens[token_id]

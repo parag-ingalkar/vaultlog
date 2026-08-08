@@ -6,6 +6,7 @@ import os
 
 os.environ.setdefault("ENVIRONMENT", "test")
 os.environ.setdefault("DATABASE_NAME", "vaultlog_test")
+os.environ.setdefault("MFA_KEK_B64", "6wAJZT3eh0Dqko9JxuXfLr8Tmct0ZwrYqvmQuwkGZwU=")
 
 from vaultlog.shared.config import get_settings
 

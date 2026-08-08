@@ -5,8 +5,11 @@ from fastapi.responses import JSONResponse
 
 from vaultlog.domain.identity.exceptions import (
     AuthenticationError,
+    MfaEnrollmentError,
+    MfaVerificationError,
     PasswordPolicyError,
     RegistrationConflictError,
+    StepUpRequiredError,
     TokenValidationError,
 )
 
@@ -52,4 +55,35 @@ def register_exception_handlers(app: FastAPI) -> None:
             status_code=status.HTTP_401_UNAUTHORIZED,
             content={"detail": "Not authenticated"},
             headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    @app.exception_handler(MfaEnrollmentError)
+    async def mfa_enrollment_error(
+        request: Request,
+        exc: MfaEnrollmentError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"detail": str(exc) or "Invalid code"},
+        )
+
+    @app.exception_handler(MfaVerificationError)
+    async def mfa_verification_error(
+        request: Request,
+        exc: MfaVerificationError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            content={"detail": str(exc) or "Invalid code"},
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    @app.exception_handler(StepUpRequiredError)
+    async def step_up_required_error(
+        request: Request,
+        exc: StepUpRequiredError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content={"detail": str(exc) or "Step-up authentication required"},
         )

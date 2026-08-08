@@ -7,8 +7,10 @@ from vaultlog.application.ports.unit_of_work import UnitOfWork
 from vaultlog.domain.identity.ports import (
     MembershipRepository,
     OrganizationRepository,
+    RecoveryCodeRepository,
     RefreshTokenRepository,
     SessionRepository,
+    TotpSecretRepository,
     UserRepository,
 )
 
@@ -19,6 +21,8 @@ class IdentityUnitOfWork(UnitOfWork, Protocol):
     sessions: SessionRepository
     refresh_tokens: RefreshTokenRepository
     organizations: OrganizationRepository
+    totp_secrets: TotpSecretRepository
+    recovery_codes: RecoveryCodeRepository
 
     async def __aenter__(self) -> Self: ...
 

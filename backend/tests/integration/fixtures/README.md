@@ -31,8 +31,8 @@ Tests marked `@pytest.mark.schema` skip `db_reset` (schema migration lifecycle t
 ```python
 from tests.integration.fixtures.constants import TENANT_A
 
-async def test_my_feature(scoped_session, register_user):
-    ...
+
+async def test_my_feature(scoped_session, register_user): ...
 ```
 
 Add new shared fixtures to `sessions.py` (or a new module registered in `integration/conftest.py` `pytest_plugins`).

@@ -19,3 +19,15 @@ class AuthenticationError(DomainError):
 
 class TokenValidationError(DomainError):
     """Raised when an access token fails verification."""
+
+
+class MfaEnrollmentError(DomainError):
+    """Raised when MFA enrollment cannot proceed or confirmation fails."""
+
+
+class MfaVerificationError(DomainError):
+    """Raised when MFA verification fails during login challenge."""
+
+
+class StepUpRequiredError(DomainError):
+    """Raised when a sensitive operation lacks valid step-up proof."""

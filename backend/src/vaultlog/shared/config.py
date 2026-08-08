@@ -41,6 +41,10 @@ class Settings(BaseSettings):
     refresh_token_ttl_days: int = 30
     refresh_cookie_secure: bool = True
 
+    mfa_kek_b64: str
+    step_up_token_ttl_seconds: int = 300
+    challenge_token_ttl_seconds: int = 300
+
     def build_database_url(
         self,
         user: str,

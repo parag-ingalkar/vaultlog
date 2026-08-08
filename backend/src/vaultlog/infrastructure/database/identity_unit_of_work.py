@@ -8,15 +8,19 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from vaultlog.domain.identity.ports import (
     MembershipRepository,
     OrganizationRepository,
+    RecoveryCodeRepository,
     RefreshTokenRepository,
     SessionRepository,
+    TotpSecretRepository,
     UserRepository,
 )
 from vaultlog.infrastructure.database.repositories.identity import (
     SqlAlchemyMembershipRepository,
     SqlAlchemyOrganizationRepository,
+    SqlAlchemyRecoveryCodeRepository,
     SqlAlchemyRefreshTokenRepository,
     SqlAlchemySessionRepository,
+    SqlAlchemyTotpSecretRepository,
     SqlAlchemyUserRepository,
 )
 
@@ -29,6 +33,8 @@ class SqlAlchemyIdentityUnitOfWork:
     sessions: SessionRepository
     refresh_tokens: RefreshTokenRepository
     organizations: OrganizationRepository
+    totp_secrets: TotpSecretRepository
+    recovery_codes: RecoveryCodeRepository
 
     def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         self._session_factory = session_factory
@@ -41,6 +47,8 @@ class SqlAlchemyIdentityUnitOfWork:
         self.sessions = SqlAlchemySessionRepository(self.session)
         self.refresh_tokens = SqlAlchemyRefreshTokenRepository(self.session)
         self.organizations = SqlAlchemyOrganizationRepository(self.session)
+        self.totp_secrets = SqlAlchemyTotpSecretRepository(self.session)
+        self.recovery_codes = SqlAlchemyRecoveryCodeRepository(self.session)
         return self
 
     async def __aexit__(

@@ -5,17 +5,24 @@ from datetime import UTC, datetime, timedelta
 
 from vaultlog.domain.identity.exceptions import (
     AuthenticationError,
+    MfaEnrollmentError,
+    MfaVerificationError,
     RegistrationConflictError,
+    TokenValidationError,
 )
-from vaultlog.domain.identity.models import TokenPair
+from vaultlog.domain.identity.models import EnrollmentResult, LoginResult, TokenPair
 from vaultlog.domain.identity.password import validate_password_strength
 from vaultlog.domain.identity.ports import (
     MembershipRepository,
     OrganizationRepository,
     PasswordHasher,
+    RecoveryCodeRepository,
     RefreshTokenRepository,
+    SeedEncryptor,
     SessionRepository,
     TokenIssuer,
+    TotpSecretRepository,
+    TotpVerifier,
     UserRepository,
 )
 
@@ -23,6 +30,33 @@ from vaultlog.domain.identity.ports import (
 _DUMMY_PASSWORD_HASH = (
     "$argon2id$v=19$m=65536,t=3,p=4$AAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
 )
+
+
+async def _issue_credentials(
+    *,
+    user_id: uuid.UUID,
+    memberships: MembershipRepository,
+    sessions: SessionRepository,
+    refresh_tokens: RefreshTokenRepository,
+    tokens: TokenIssuer,
+    refresh_ttl_days: int,
+    user_agent: str | None,
+    amr: tuple[str, ...],
+) -> TokenPair:
+    tenant_id = await memberships.get_default_tenant_id(user_id)
+    if tenant_id is None:
+        raise AuthenticationError("Invalid email or password")
+
+    session = await sessions.add(user_id=user_id, user_agent=user_agent)
+    raw_refresh = tokens.generate_refresh_token()
+    await refresh_tokens.add(
+        session_id=session.id,
+        token_hash=tokens.hash_refresh_token(raw_refresh),
+        expires_at=datetime.now(UTC) + timedelta(days=refresh_ttl_days),
+    )
+
+    access = tokens.mint_access_token(user_id, tenant_id, session.id, amr=amr)
+    return TokenPair(access_token=access, refresh_token=raw_refresh)
 
 
 class IdentityService:
@@ -74,7 +108,7 @@ class IdentityService:
         email: str,
         password: str,
         user_agent: str | None,
-    ) -> TokenPair:
+    ) -> LoginResult:
         user = await self._users.get_by_email(email.strip().lower())
         if user is None or not user.is_active:
             self._passwords.verify(password, _DUMMY_PASSWORD_HASH)
@@ -82,20 +116,21 @@ class IdentityService:
         if not self._passwords.verify(password, user.password_hash):
             raise AuthenticationError("Invalid email or password")
 
-        tenant_id = await self._memberships.get_default_tenant_id(user.id)
-        if tenant_id is None:
-            raise AuthenticationError("Invalid email or password")
+        if user.mfa_enabled:
+            challenge = self._tokens.mint_challenge_token(user.id)
+            return LoginResult(kind="mfa_required", challenge_token=challenge)
 
-        session = await self._sessions.add(user_id=user.id, user_agent=user_agent)
-        raw_refresh = self._tokens.generate_refresh_token()
-        await self._refresh_tokens.add(
-            session_id=session.id,
-            token_hash=self._tokens.hash_refresh_token(raw_refresh),
-            expires_at=datetime.now(UTC) + timedelta(days=self._refresh_ttl_days),
+        pair = await _issue_credentials(
+            user_id=user.id,
+            memberships=self._memberships,
+            sessions=self._sessions,
+            refresh_tokens=self._refresh_tokens,
+            tokens=self._tokens,
+            refresh_ttl_days=self._refresh_ttl_days,
+            user_agent=user_agent,
+            amr=("pwd",),
         )
-
-        access = self._tokens.mint_access_token(user.id, tenant_id, session.id)
-        return TokenPair(access_token=access, refresh_token=raw_refresh)
+        return LoginResult(kind="tokens", pair=pair)
 
     async def refresh(self, raw_refresh_token: str) -> TokenPair:
         token_hash = self._tokens.hash_refresh_token(raw_refresh_token)
@@ -157,3 +192,118 @@ class IdentityService:
                 revoked_at=datetime.now(UTC),
                 reason="user_logout",
             )
+
+
+class MfaService:
+    """MFA enrollment, login completion, step-up, and disable."""
+
+    def __init__(
+        self,
+        *,
+        users: UserRepository,
+        memberships: MembershipRepository,
+        sessions: SessionRepository,
+        refresh_tokens: RefreshTokenRepository,
+        totp_secrets: TotpSecretRepository,
+        recovery_codes: RecoveryCodeRepository,
+        seed_encryptor: SeedEncryptor,
+        totp_verifier: TotpVerifier,
+        tokens: TokenIssuer,
+        refresh_ttl_days: int,
+    ) -> None:
+        self._users = users
+        self._memberships = memberships
+        self._sessions = sessions
+        self._refresh_tokens = refresh_tokens
+        self._totp_secrets = totp_secrets
+        self._recovery_codes = recovery_codes
+        self._seed_encryptor = seed_encryptor
+        self._totp_verifier = totp_verifier
+        self._tokens = tokens
+        self._refresh_ttl_days = refresh_ttl_days
+
+    async def start_enrollment(self, user_id: uuid.UUID, email: str) -> EnrollmentResult:
+        await self._totp_secrets.delete_for_user(user_id)
+        seed = self._totp_verifier.generate_seed()
+        nonce, ciphertext = self._seed_encryptor.encrypt(user_id, seed)
+        await self._totp_secrets.add(user_id, ciphertext, nonce, confirmed=False)
+        uri = self._totp_verifier.provisioning_uri(seed, email)
+        return EnrollmentResult(provisioning_uri=uri)
+
+    async def confirm_enrollment(self, user_id: uuid.UUID, code: str) -> list[str]:
+        record = await self._totp_secrets.get_unconfirmed(user_id)
+        if record is None:
+            raise MfaEnrollmentError("No pending enrollment")
+
+        seed = self._seed_encryptor.decrypt(user_id, record.seed_nonce, record.encrypted_seed)
+        if not self._totp_verifier.verify_totp(seed, code):
+            raise MfaEnrollmentError("Invalid code")
+
+        now = datetime.now(UTC)
+        await self._totp_secrets.confirm(user_id, now)
+        await self._users.set_mfa_enabled(user_id, True)
+
+        await self._recovery_codes.delete_for_user(user_id)
+        codes = self._totp_verifier.generate_recovery_codes()
+        hashes = [self._totp_verifier.hash_recovery_code(raw) for raw in codes]
+        await self._recovery_codes.add_batch(user_id, hashes)
+        return codes
+
+    async def _verify_totp_code(self, user_id: uuid.UUID, code: str) -> bool:
+        record = await self._totp_secrets.get_confirmed(user_id)
+        if record is None:
+            return False
+        seed = self._seed_encryptor.decrypt(user_id, record.seed_nonce, record.encrypted_seed)
+        return self._totp_verifier.verify_totp(seed, code)
+
+    async def _redeem_recovery_code(self, user_id: uuid.UUID, code: str) -> bool:
+        code_hash = self._totp_verifier.hash_recovery_code(code)
+        return await self._recovery_codes.redeem_for_update(user_id, code_hash)
+
+    async def complete_login(
+        self,
+        challenge_token: str,
+        code: str,
+        user_agent: str | None,
+    ) -> TokenPair:
+        try:
+            user_id = self._tokens.verify_challenge_token(challenge_token)
+        except TokenValidationError as exc:
+            raise MfaVerificationError("Invalid or expired challenge") from exc
+
+        user = await self._users.get(user_id)
+        if user is None or not user.is_active or not user.mfa_enabled:
+            raise MfaVerificationError("Invalid or expired challenge")
+
+        ok = await self._verify_totp_code(user_id, code) or await self._redeem_recovery_code(
+            user_id, code
+        )
+        if not ok:
+            raise MfaVerificationError("Invalid code")
+
+        return await _issue_credentials(
+            user_id=user_id,
+            memberships=self._memberships,
+            sessions=self._sessions,
+            refresh_tokens=self._refresh_tokens,
+            tokens=self._tokens,
+            refresh_ttl_days=self._refresh_ttl_days,
+            user_agent=user_agent,
+            amr=("pwd", "totp"),
+        )
+
+    async def step_up(
+        self,
+        user_id: uuid.UUID,
+        session_id: uuid.UUID,
+        code: str,
+        purpose: str,
+    ) -> str:
+        if not await self._verify_totp_code(user_id, code):
+            raise MfaVerificationError("Invalid code")
+        return self._tokens.mint_step_up_token(user_id, session_id, purpose)
+
+    async def disable_mfa(self, user_id: uuid.UUID) -> None:
+        await self._totp_secrets.delete_for_user(user_id)
+        await self._recovery_codes.delete_for_user(user_id)
+        await self._users.set_mfa_enabled(user_id, False)
