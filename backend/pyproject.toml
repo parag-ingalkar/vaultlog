@@ -60,6 +60,7 @@ ignore = [
 "tests/**/*.py" = ["S101", "S105", "S106"]
 "src/vaultlog/presentation/**/*.py" = ["B008", "S105"]
 "src/vaultlog/domain/identity/services.py" = ["S105"]
+"src/vaultlog/domain/access/models.py" = ["S105"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

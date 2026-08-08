@@ -7,6 +7,19 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from vaultlog.application.ports.tenant_context import TenantContext
+from vaultlog.domain.access.ports import (
+    MembershipAccessPort,
+    VaultAccessPort,
+    VaultGrantAccessPort,
+)
+from vaultlog.domain.vaults.ports import VaultGrantRepository, VaultRepository
+from vaultlog.infrastructure.database.repositories.vaults import (
+    SqlAlchemyMembershipAccessRepository,
+    SqlAlchemyVaultAccessRepository,
+    SqlAlchemyVaultGrantAccessRepository,
+    SqlAlchemyVaultGrantRepository,
+    SqlAlchemyVaultRepository,
+)
 
 
 class SqlAlchemyUnitOfWork:
@@ -15,6 +28,12 @@ class SqlAlchemyUnitOfWork:
     SET LOCAL scopes the GUC to the current transaction, so tenant context
     cannot leak between requests sharing a pooled connection.
     """
+
+    vaults: VaultRepository
+    vault_grants: VaultGrantRepository
+    membership_access: MembershipAccessPort
+    vault_access: VaultAccessPort
+    grant_access: VaultGrantAccessPort
 
     def __init__(
         self,
@@ -31,6 +50,11 @@ class SqlAlchemyUnitOfWork:
             text("SELECT set_config('app.current_tenant', :tenant_id, true)"),
             {"tenant_id": str(self._tenant_context.tenant_id)},
         )
+        self.vaults = SqlAlchemyVaultRepository(self.session)
+        self.vault_grants = SqlAlchemyVaultGrantRepository(self.session)
+        self.membership_access = SqlAlchemyMembershipAccessRepository(self.session)
+        self.vault_access = SqlAlchemyVaultAccessRepository(self.session)
+        self.grant_access = SqlAlchemyVaultGrantAccessRepository(self.session)
         return self
 
     async def __aexit__(

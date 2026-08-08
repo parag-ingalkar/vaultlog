@@ -5,7 +5,7 @@ from __future__ import annotations
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from tests.integration.fixtures.constants import TENANT_A, TENANT_B, VAULT_A_ID
+from tests.integration.fixtures.constants import SEED_USER_ID, TENANT_A, TENANT_B, VAULT_A_ID
 
 
 async def seed_baseline_data(engine: AsyncEngine) -> None:
@@ -31,6 +31,14 @@ async def seed_baseline_data(engine: AsyncEngine) -> None:
             {"t": str(TENANT_A)},
         )
         await conn.execute(
-            text("INSERT INTO vault (id, tenant_id, name) VALUES (:id, :t, 'A secret vault')"),
-            {"id": VAULT_A_ID, "t": TENANT_A},
+            text(
+                """
+                INSERT INTO vault (
+                    id, tenant_id, name, description, created_by_user_id
+                ) VALUES (
+                    :id, :t, 'A secret vault', 'Baseline vault for isolation tests', :user_id
+                )
+                """
+            ),
+            {"id": VAULT_A_ID, "t": TENANT_A, "user_id": SEED_USER_ID},
         )

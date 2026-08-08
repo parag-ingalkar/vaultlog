@@ -18,7 +18,7 @@ RLS_DIR = Path(__file__).resolve().parent
 POLICIES_DIR = RLS_DIR / "policies"
 
 # Tenant-owned tables that must have a matching policy file. Update when adding tables.
-TENANT_TABLES = frozenset({"organization", "vault", "membership"})
+TENANT_TABLES = frozenset({"organization", "vault", "vault_grant", "membership"})
 
 
 def _split_sql_statements(sql: str) -> list[str]:

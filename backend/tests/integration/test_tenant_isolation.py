@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from sqlalchemy import text
 
-from tests.integration.fixtures.constants import TENANT_A, TENANT_B
+from tests.integration.fixtures.constants import SEED_USER_ID, TENANT_A, TENANT_B
 
 
 async def test_tenant_a_sees_own_vaults(scoped_session):
@@ -31,9 +31,12 @@ async def test_cross_tenant_insert_is_rejected(scoped_session):
     try:
         await session.execute(
             text(
-                "INSERT INTO vault (id, tenant_id, name) VALUES (gen_random_uuid(), :t, 'stolen')"
+                """
+                INSERT INTO vault (id, tenant_id, name, created_by_user_id)
+                VALUES (gen_random_uuid(), :t, 'stolen', :user_id)
+                """
             ),
-            {"t": str(TENANT_A)},
+            {"t": str(TENANT_A), "user_id": str(SEED_USER_ID)},
         )
         raise AssertionError("RLS WITH CHECK should have rejected the insert")
     except Exception:

@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from vaultlog.infrastructure.database.engine import build_engine, build_session_factory
 from vaultlog.presentation.api.v1.auth import router as auth_router
 from vaultlog.presentation.api.v1.health import router as health_router
+from vaultlog.presentation.api.v1.vaults import router as vaults_router
 from vaultlog.presentation.exception_handlers import register_exception_handlers
 from vaultlog.shared.config import get_settings
 from vaultlog.shared.logging import configure_logging
@@ -68,6 +69,7 @@ def create_app() -> FastAPI:
     register_exception_handlers(app)
     app.include_router(health_router, prefix="/api/v1")
     app.include_router(auth_router, prefix="/api/v1")
+    app.include_router(vaults_router, prefix="/api/v1")
 
     return app
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 
+from vaultlog.domain.access.exceptions import ForbiddenError, NotFoundError
 from vaultlog.domain.identity.exceptions import (
     AuthenticationError,
     MfaEnrollmentError,
@@ -86,4 +87,24 @@ def register_exception_handlers(app: FastAPI) -> None:
         return JSONResponse(
             status_code=status.HTTP_403_FORBIDDEN,
             content={"detail": str(exc) or "Step-up authentication required"},
+        )
+
+    @app.exception_handler(ForbiddenError)
+    async def forbidden_error(
+        request: Request,
+        exc: ForbiddenError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content={"detail": "Access denied"},
+        )
+
+    @app.exception_handler(NotFoundError)
+    async def not_found_error(
+        request: Request,
+        exc: NotFoundError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={"detail": "Not found"},
         )

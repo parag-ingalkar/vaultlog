@@ -7,6 +7,7 @@ import uuid
 TENANT_A = uuid.UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
 TENANT_B = uuid.UUID("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
 VAULT_A_ID = uuid.UUID("cccccccc-cccc-cccc-cccc-cccccccccccc")
+SEED_USER_ID = uuid.UUID("dddddddd-dddd-dddd-dddd-dddddddddddd")
 
 TEST_DATABASE_NAME = "vaultlog_test"
 ADMIN_DATABASE_NAME = "vaultlog"

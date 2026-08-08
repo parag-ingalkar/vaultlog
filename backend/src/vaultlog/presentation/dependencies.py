@@ -24,6 +24,13 @@ from vaultlog.application.identity.use_cases import (
 )
 from vaultlog.application.ports.identity_unit_of_work import IdentityUnitOfWork
 from vaultlog.application.ports.tenant_context import TenantContext
+from vaultlog.application.vaults.use_cases import (
+    CreateVault,
+    DeleteVault,
+    ListVaults,
+    ManageGrant,
+    UpdateVault,
+)
 from vaultlog.domain.identity.exceptions import StepUpRequiredError, TokenValidationError
 from vaultlog.infrastructure.database.identity_unit_of_work import (
     SqlAlchemyIdentityUnitOfWork,
@@ -294,3 +301,45 @@ def get_tenant_uow(
 ) -> SqlAlchemyUnitOfWork:
     context = TenantContext(tenant_id=principal.tenant_id)
     return SqlAlchemyUnitOfWork(session_factory, context)
+
+
+def get_tenant_uow_factory(
+    principal: Principal = Depends(current_principal),
+    session_factory: async_sessionmaker[AsyncSession] = Depends(get_app_session_factory),
+) -> Callable[[], SqlAlchemyUnitOfWork]:
+    context = TenantContext(tenant_id=principal.tenant_id)
+
+    def factory() -> SqlAlchemyUnitOfWork:
+        return SqlAlchemyUnitOfWork(session_factory, context)
+
+    return factory
+
+
+def get_create_vault(
+    uow_factory: Callable[[], SqlAlchemyUnitOfWork] = Depends(get_tenant_uow_factory),
+) -> CreateVault:
+    return CreateVault(uow_factory)
+
+
+def get_list_vaults(
+    uow_factory: Callable[[], SqlAlchemyUnitOfWork] = Depends(get_tenant_uow_factory),
+) -> ListVaults:
+    return ListVaults(uow_factory)
+
+
+def get_update_vault(
+    uow_factory: Callable[[], SqlAlchemyUnitOfWork] = Depends(get_tenant_uow_factory),
+) -> UpdateVault:
+    return UpdateVault(uow_factory)
+
+
+def get_delete_vault(
+    uow_factory: Callable[[], SqlAlchemyUnitOfWork] = Depends(get_tenant_uow_factory),
+) -> DeleteVault:
+    return DeleteVault(uow_factory)
+
+
+def get_manage_grant(
+    uow_factory: Callable[[], SqlAlchemyUnitOfWork] = Depends(get_tenant_uow_factory),
+) -> ManageGrant:
+    return ManageGrant(uow_factory)
