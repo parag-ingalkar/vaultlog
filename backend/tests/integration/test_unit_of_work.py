@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from sqlalchemy import text
 
-from tests.integration.conftest import TENANT_A
+from tests.integration.fixtures.constants import TENANT_A
 from vaultlog.application.ports.tenant_context import TenantContext
 from vaultlog.infrastructure.database.engine import build_session_factory
 from vaultlog.infrastructure.database.unit_of_work import SqlAlchemyUnitOfWork

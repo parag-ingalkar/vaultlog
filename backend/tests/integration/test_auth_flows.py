@@ -1,95 +1,18 @@
 from __future__ import annotations
 
-import pytest
-import pytest_asyncio
-from sqlalchemy.ext.asyncio import async_sessionmaker
+import uuid
 
-from vaultlog.application.identity.use_cases import (
-    LoginUser,
-    LogoutSession,
-    RefreshTokens,
-    RegisterUser,
-)
+import pytest
+
 from vaultlog.domain.identity.exceptions import AuthenticationError
-from vaultlog.infrastructure.database.identity_unit_of_work import (
-    SqlAlchemyIdentityUnitOfWork,
-)
-from vaultlog.infrastructure.security.passwords import Argon2Hasher
 from vaultlog.infrastructure.security.tokens import TokenService
 from vaultlog.shared.config import get_settings
-
-pytestmark = pytest.mark.asyncio(loop_scope="module")
 
 PASSWORD = "correct horse battery"
 settings = get_settings()
 
 
-@pytest_asyncio.fixture(scope="module", loop_scope="module")
-async def identity_session_factory(owner_engine):
-    return async_sessionmaker(owner_engine, expire_on_commit=False)
-
-
-@pytest.fixture()
-def identity_uow_factory(identity_session_factory):
-    def factory() -> SqlAlchemyIdentityUnitOfWork:
-        return SqlAlchemyIdentityUnitOfWork(identity_session_factory)
-
-    return factory
-
-
-@pytest.fixture()
-def passwords() -> Argon2Hasher:
-    return Argon2Hasher()
-
-
-@pytest.fixture()
-def tokens() -> TokenService:
-    return TokenService(settings)
-
-
-@pytest.fixture()
-def register_user(identity_uow_factory, passwords, tokens) -> RegisterUser:
-    return RegisterUser(
-        identity_uow_factory,
-        passwords,
-        tokens,
-        settings.refresh_token_ttl_days,
-    )
-
-
-@pytest.fixture()
-def login_user(identity_uow_factory, passwords, tokens) -> LoginUser:
-    return LoginUser(
-        identity_uow_factory,
-        passwords,
-        tokens,
-        settings.refresh_token_ttl_days,
-    )
-
-
-@pytest.fixture()
-def refresh_tokens(identity_uow_factory, passwords, tokens) -> RefreshTokens:
-    return RefreshTokens(
-        identity_uow_factory,
-        passwords,
-        tokens,
-        settings.refresh_token_ttl_days,
-    )
-
-
-@pytest.fixture()
-def logout_session(identity_uow_factory, passwords, tokens) -> LogoutSession:
-    return LogoutSession(
-        identity_uow_factory,
-        passwords,
-        tokens,
-        settings.refresh_token_ttl_days,
-    )
-
-
 def _unique_email(prefix: str = "ada") -> str:
-    import uuid
-
     return f"{prefix}-{uuid.uuid4().hex[:12]}@example.com"
 
 

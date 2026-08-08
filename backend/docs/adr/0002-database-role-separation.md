@@ -22,7 +22,8 @@ provides no real isolation guarantee.
 
 ## Consequences
 
-- Every migration creating a table must also GRANT to vaultlog_app and add
-  ENABLE/FORCE ROW LEVEL SECURITY plus a tenant_isolation policy.
+- Every migration creating a tenant-owned table must GRANT to vaultlog_app.
+  RLS policies are applied from `scripts/rls/policies/` after migrations
+  (see ADR 0004), not embedded in revision files.
 - Local development seeds fixture data through the owner role.
 - The app role cannot create tables, preventing privilege drift at runtime.

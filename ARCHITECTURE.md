@@ -239,7 +239,7 @@ The implementation architecture does **not** change these product/security decis
 - **Multi-tenancy:** Shared PostgreSQL + RLS on tenant-owned tables; `tid` in JWT validated at mint time.
 - **Schema split:** Global identity tables (`app_user`, `auth_session`, `refresh_token`) without RLS; tenant-owned `membership` with RLS.
 
-Record major security choices in `backend/docs/adr/` (e.g. [0001 RLS](backend/docs/adr/0001-shared-postgresql-with-rls.md), [0002 roles](backend/docs/adr/0002-database-role-separation.md), [0003 JWT + refresh](backend/docs/adr/0003-hybrid-jwt-access-rotating-refresh.md)).
+Record major security choices in `backend/docs/adr/` (e.g. [0001 RLS](backend/docs/adr/0001-shared-postgresql-with-rls.md), [0002 roles](backend/docs/adr/0002-database-role-separation.md), [0003 JWT + refresh](backend/docs/adr/0003-hybrid-jwt-access-rotating-refresh.md), [0004 RLS scripts](backend/docs/adr/0004-rls-policy-scripts.md)).
 
 ---
 
@@ -274,7 +274,7 @@ When implementing a new VaultLogBook chapter, follow this order:
 - `HTTPException` raised from domain or application layers.
 - Catching domain exceptions in routers (except cookie cleanup + re-raise).
 - Reusing `IdentityUnitOfWork` for tenant-scoped reads/writes.
-- Skipping RLS grants/policies on new tenant tables ([migration checklist](backend/docs/migration-checklist.md)).
+- Skipping RLS policy scripts or grants on new tenant tables ([migration checklist](backend/docs/migration-checklist.md)).
 
 ---
 
@@ -321,7 +321,7 @@ backend/src/vaultlog/
 | [VaultLogBook.md](VaultLogBook.md) | Tutorial: security design, chapter-by-chapter features, book-style code samples |
 | **ARCHITECTURE.md** (this file) | How we structure code: DDD layers, ports, domain services, exception flow |
 | `backend/docs/adr/*.md` | Immutable decisions with context and consequences |
-| `backend/docs/migration-checklist.md` | RLS and grant checklist for every migration |
+| `backend/docs/migration-checklist.md` | Grant and RLS policy-script checklist for every migration |
 
 When VaultLogBook and this document disagree on **structure**, follow this document. When they disagree on **security behavior** (TTL, algorithms, RLS, threat handling), follow VaultLogBook and update ADRs if the decision is new.
 

@@ -4,6 +4,8 @@ import asyncio
 from logging.config import fileConfig
 
 from alembic import context
+from alembic.script import ScriptDirectory
+from scripts.rls.apply import apply_rls_policies, is_upgrade_revision
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
@@ -38,8 +40,15 @@ def run_migrations_offline() -> None:
 
 def do_run_migrations(connection) -> None:
     context.configure(connection=connection, target_metadata=target_metadata)
+    migration_context = context.get_context()
+    start_rev = migration_context.get_current_revision()
+    script_dir = ScriptDirectory.from_config(config)
+
     with context.begin_transaction():
         context.run_migrations()
+        end_rev = migration_context.get_current_revision()
+        if is_upgrade_revision(script_dir, start_rev, end_rev):
+            apply_rls_policies(connection, strict=False)
 
 
 async def run_migrations_online() -> None:

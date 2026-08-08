@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from sqlalchemy import text
 
-from tests.integration.conftest import TENANT_A, TENANT_B
+from tests.integration.fixtures.constants import TENANT_A, TENANT_B
 
 
 async def test_tenant_a_sees_own_vaults(scoped_session):

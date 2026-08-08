@@ -41,14 +41,20 @@ class Settings(BaseSettings):
     refresh_token_ttl_days: int = 30
     refresh_cookie_secure: bool = True
 
-    def build_database_url(self, user: str, password: str) -> str:
+    def build_database_url(
+        self,
+        user: str,
+        password: str,
+        *,
+        database_name: str | None = None,
+    ) -> str:
         return PostgresDsn.build(
             scheme="postgresql+asyncpg",
             username=user,
             password=password,
             host=self.database_host,
             port=self.database_port,
-            path=self.database_name,
+            path=database_name or self.database_name,
         ).unicode_string()
 
     @property
