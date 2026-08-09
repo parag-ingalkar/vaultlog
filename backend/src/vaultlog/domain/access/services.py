@@ -15,6 +15,35 @@ from vaultlog.domain.access.ports import (
     VaultGrantAccessPort,
 )
 
+_SENSITIVE_VAULT_ACTIONS = frozenset(
+    {
+        Action.SECRET_REVEAL,
+        Action.SECRET_DELETE,
+        Action.VAULT_DELETE,
+        Action.GRANT_MANAGE,
+    }
+)
+
+_ACTION_TO_ATTEMPTED_AUDIT: dict[Action, str] = {
+    Action.SECRET_REVEAL: "secret.revealed",
+    Action.SECRET_DELETE: "secret.deleted",
+    Action.SECRET_WRITE: "secret.created",
+    Action.VAULT_DELETE: "vault.deleted",
+    Action.GRANT_MANAGE: "grant.created",
+}
+
+
+def _forbidden_vault_action(action: Action, vault_id: uuid.UUID) -> ForbiddenError:
+    if action in _SENSITIVE_VAULT_ACTIONS:
+        return ForbiddenError(
+            "Access denied",
+            audit_denial=True,
+            attempted_action=_ACTION_TO_ATTEMPTED_AUDIT.get(action, action.value),
+            audit_target_type="vault",
+            audit_target_id=vault_id,
+        )
+    return ForbiddenError("Access denied")
+
 
 def _org_allows(role: OrgRole, action: Action) -> bool:
     """Baseline org-role permissions, independent of vault grants."""
@@ -30,6 +59,8 @@ def _org_allows(role: OrgRole, action: Action) -> bool:
         case Action.SECRET_WRITE:
             return role in (OrgRole.OWNER, OrgRole.ADMIN)
         case Action.SECRET_DELETE:
+            return role in (OrgRole.OWNER, OrgRole.ADMIN)
+        case Action.AUDIT_READ:
             return role in (OrgRole.OWNER, OrgRole.ADMIN)
         case _:
             return False
@@ -102,7 +133,7 @@ class PolicyService:
 
         role = await self._memberships.get_role(user_id, tenant_id)
         if role is None:
-            raise ForbiddenError("Access denied")
+            raise _forbidden_vault_action(action, vault_id)
 
         if role in (OrgRole.OWNER, OrgRole.ADMIN):
             return AccessContext(
@@ -114,7 +145,7 @@ class PolicyService:
 
         permission = await self._grants.get_permission(user_id, tenant_id, vault_id)
         if not _grant_allows(permission, action, role=role):
-            raise ForbiddenError("Access denied")
+            raise _forbidden_vault_action(action, vault_id)
 
         return AccessContext(
             user_id=user_id,

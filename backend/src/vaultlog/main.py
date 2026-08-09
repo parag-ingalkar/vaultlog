@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from vaultlog.infrastructure.database.engine import build_engine, build_session_factory
+from vaultlog.presentation.api.v1.audit import router as audit_router
 from vaultlog.presentation.api.v1.auth import router as auth_router
 from vaultlog.presentation.api.v1.health import router as health_router
 from vaultlog.presentation.api.v1.secrets import router as secrets_router
@@ -72,6 +73,7 @@ def create_app() -> FastAPI:
     app.include_router(auth_router, prefix="/api/v1")
     app.include_router(vaults_router, prefix="/api/v1")
     app.include_router(secrets_router, prefix="/api/v1")
+    app.include_router(audit_router, prefix="/api/v1")
 
     return app
 

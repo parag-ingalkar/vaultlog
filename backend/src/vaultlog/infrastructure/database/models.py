@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import (
+    BigInteger,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -15,7 +17,7 @@ from sqlalchemy import (
     func,
     text,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from vaultlog.infrastructure.database.base import Base
@@ -188,3 +190,49 @@ class SecretVersionModel(Base):
     )
 
     __table_args__ = (UniqueConstraint("secret_id", "version", name="uq_secret_version"),)
+
+
+class AuditEventModel(Base):
+    __tablename__ = "audit_event"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("organization.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    sequence: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    actor_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    session_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    action: Mapped[str] = mapped_column(String(50), nullable=False)
+    target_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    target_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    outcome: Mapped[str] = mapped_column(String(10), nullable=False)
+    event_metadata: Mapped[dict[str, Any]] = mapped_column(
+        "metadata", JSONB, nullable=False, default=dict
+    )
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    previous_hash: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    entry_hash: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "sequence", name="uq_audit_tenant_sequence"),
+        UniqueConstraint("tenant_id", "entry_hash", name="uq_audit_tenant_entry_hash"),
+        CheckConstraint("outcome IN ('success','failure','denied')", name="ck_audit_outcome"),
+        Index("ix_audit_tenant_action_time", "tenant_id", "action", "occurred_at"),
+    )
+
+
+class AuditChainHeadModel(Base):
+    __tablename__ = "audit_chain_head"
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("organization.id", ondelete="RESTRICT"),
+        primary_key=True,
+    )
+    last_sequence: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    last_hash: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)

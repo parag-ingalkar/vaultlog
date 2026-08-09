@@ -126,11 +126,12 @@ class FakeGrantRepository:
         membership_id: uuid.UUID,
         permission: VaultPermission,
         granted_by_user_id: uuid.UUID,
-    ) -> None:
+    ) -> bool:
         self.grants = [
             row for row in self.grants if not (row[0] == vault_id and row[1] == membership_id)
         ]
         self.grants.append((vault_id, membership_id, permission))
+        return True
 
     async def delete(
         self,

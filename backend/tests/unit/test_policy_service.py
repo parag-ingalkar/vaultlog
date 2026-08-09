@@ -78,6 +78,7 @@ ORG_ACTIONS = {
     Action.VAULT_CREATE,
     Action.MEMBER_INVITE,
     Action.MEMBER_REMOVE,
+    Action.AUDIT_READ,
 }
 
 VAULT_ACTIONS = {
@@ -111,6 +112,9 @@ MATRIX: list[tuple[OrgRole, VaultPermission | None, Action, bool]] = [
     (OrgRole.ADMIN, None, Action.VAULT_CREATE, True),
     (OrgRole.ADMIN, None, Action.SECRET_WRITE, True),
     (OrgRole.ADMIN, None, Action.SECRET_DELETE, True),
+    (OrgRole.OWNER, None, Action.AUDIT_READ, True),
+    (OrgRole.ADMIN, None, Action.AUDIT_READ, True),
+    (OrgRole.MEMBER, None, Action.AUDIT_READ, False),
     (OrgRole.MEMBER, None, Action.SECRET_READ_META, False),
     (OrgRole.MEMBER, VaultPermission.READ, Action.SECRET_READ_META, True),
     (OrgRole.MEMBER, VaultPermission.READ, Action.SECRET_WRITE, False),

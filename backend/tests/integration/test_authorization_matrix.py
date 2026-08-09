@@ -74,6 +74,7 @@ async def _evaluate(
                 Action.VAULT_CREATE,
                 Action.MEMBER_INVITE,
                 Action.MEMBER_REMOVE,
+                Action.AUDIT_READ,
             }:
                 await policy.require_org(user_id, ORG_ID, action)
             else:
@@ -91,6 +92,9 @@ MATRIX = [
     (OrgRole.ADMIN, None, Action.VAULT_CREATE, True, ADMIN_USER, None),
     (OrgRole.ADMIN, None, Action.SECRET_WRITE, True, ADMIN_USER, None),
     (OrgRole.ADMIN, None, Action.SECRET_DELETE, True, ADMIN_USER, None),
+    (OrgRole.OWNER, None, Action.AUDIT_READ, True, OWNER_USER, None),
+    (OrgRole.ADMIN, None, Action.AUDIT_READ, True, ADMIN_USER, None),
+    (OrgRole.MEMBER, None, Action.AUDIT_READ, False, MEMBER_USER, None),
     (OrgRole.MEMBER, None, Action.SECRET_READ_META, False, MEMBER_USER, MEMBER_MEMBERSHIP),
     (
         OrgRole.MEMBER,

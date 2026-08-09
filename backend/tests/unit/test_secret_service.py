@@ -244,7 +244,7 @@ async def test_reveal_returns_plaintext() -> None:
 async def test_rotate_increments_version() -> None:
     service = build_service()
     created = await service.create(USER_ID, TENANT_ID, VAULT_ID, "k", "v1", None)
-    rotated = await service.rotate(USER_ID, TENANT_ID, VAULT_ID, created.id, "v2")
+    rotated, _dek_version = await service.rotate(USER_ID, TENANT_ID, VAULT_ID, created.id, "v2")
     assert rotated.current_version == 2
 
 

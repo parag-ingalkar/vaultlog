@@ -61,8 +61,7 @@ async def create_secret(
     use_case: CreateSecret = Depends(get_create_secret),
 ) -> SecretMetaResponse:
     view = await use_case.execute(
-        principal.user_id,
-        principal.tenant_id,
+        principal.to_actor(),
         vault_id,
         body.name,
         body.value,
@@ -108,8 +107,7 @@ async def reveal_secret(
     use_case: RevealSecret = Depends(get_reveal_secret),
 ) -> RevealResponse:
     meta, plaintext, revealed_version = await use_case.execute(
-        principal.user_id,
-        principal.tenant_id,
+        principal.to_actor(),
         vault_id,
         secret_id,
         version,
@@ -132,8 +130,7 @@ async def rotate_secret(
     use_case: RotateSecret = Depends(get_rotate_secret),
 ) -> SecretMetaResponse:
     view = await use_case.execute(
-        principal.user_id,
-        principal.tenant_id,
+        principal.to_actor(),
         vault_id,
         secret_id,
         body.value,
@@ -156,8 +153,7 @@ async def delete_secret(
     use_case: DeleteSecret = Depends(get_delete_secret),
 ) -> None:
     await use_case.execute(
-        principal.user_id,
-        principal.tenant_id,
+        principal.to_actor(),
         vault_id,
         secret_id,
         step_up_proven=True,

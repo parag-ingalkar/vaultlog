@@ -48,7 +48,7 @@ class VaultGrantRepository(Protocol):
         membership_id: uuid.UUID,
         permission: VaultPermission,
         granted_by_user_id: uuid.UUID,
-    ) -> None: ...
+    ) -> bool: ...
 
     async def delete(
         self,

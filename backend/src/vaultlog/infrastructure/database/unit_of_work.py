@@ -12,12 +12,14 @@ from vaultlog.domain.access.ports import (
     VaultAccessPort,
     VaultGrantAccessPort,
 )
+from vaultlog.domain.audit.ports import AuditLedgerPort
 from vaultlog.domain.secrets.ports import (
     SecretRepository,
     SecretVersionRepository,
     TenantKeyRepository,
 )
 from vaultlog.domain.vaults.ports import VaultGrantRepository, VaultRepository
+from vaultlog.infrastructure.database.repositories.audit import SqlAlchemyAuditRepository
 from vaultlog.infrastructure.database.repositories.secrets import (
     SqlAlchemySecretRepository,
     SqlAlchemySecretVersionRepository,
@@ -47,6 +49,7 @@ class SqlAlchemyUnitOfWork:
     secrets: SecretRepository
     secret_versions: SecretVersionRepository
     tenant_keys: TenantKeyRepository
+    audit: AuditLedgerPort
 
     def __init__(
         self,
@@ -71,6 +74,7 @@ class SqlAlchemyUnitOfWork:
         self.secrets = SqlAlchemySecretRepository(self.session)
         self.secret_versions = SqlAlchemySecretVersionRepository(self.session)
         self.tenant_keys = SqlAlchemyTenantKeyRepository(self.session)
+        self.audit = SqlAlchemyAuditRepository(self.session)
         return self
 
     async def __aexit__(

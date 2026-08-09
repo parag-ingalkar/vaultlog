@@ -4,6 +4,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 
 from vaultlog.domain.access.exceptions import ForbiddenError, NotFoundError
+from vaultlog.domain.audit.exceptions import AuditMetadataError, UnknownAuditActionError
 from vaultlog.domain.identity.exceptions import (
     AuthenticationError,
     MfaEnrollmentError,
@@ -153,4 +154,15 @@ def register_exception_handlers(app: FastAPI) -> None:
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"detail": str(exc) or "Tenant encryption setup failed"},
+        )
+
+    @app.exception_handler(AuditMetadataError)
+    @app.exception_handler(UnknownAuditActionError)
+    async def audit_validation_error(
+        request: Request,
+        exc: AuditMetadataError | UnknownAuditActionError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"detail": str(exc) or "Invalid audit event"},
         )

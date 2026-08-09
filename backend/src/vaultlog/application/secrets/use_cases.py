@@ -3,8 +3,12 @@ from __future__ import annotations
 import uuid
 from collections.abc import Callable
 
+from vaultlog.application.audit.helpers import build_audit_service
+from vaultlog.application.audit.use_cases import RecordAccessDenial, record_denial_if_needed
 from vaultlog.application.ports.tenant_unit_of_work import TenantUnitOfWork
+from vaultlog.domain.access.exceptions import ForbiddenError
 from vaultlog.domain.access.services import PolicyService
+from vaultlog.domain.audit.models import ActorContext
 from vaultlog.domain.secrets.key_service import TenantKeyService
 from vaultlog.domain.secrets.models import SecretMetaView
 from vaultlog.domain.secrets.ports import KEKProvider, SecretEncryptor
@@ -72,32 +76,45 @@ class CreateSecret:
         uow_factory: Callable[[], TenantUnitOfWork],
         kek: KEKProvider,
         encryptor: SecretEncryptor,
+        record_denial: RecordAccessDenial,
     ) -> None:
         self._uow_factory = uow_factory
         self._kek = kek
         self._encryptor = encryptor
+        self._record_denial = record_denial
 
     async def execute(
         self,
-        user_id: uuid.UUID,
-        tenant_id: uuid.UUID,
+        actor: ActorContext,
         vault_id: uuid.UUID,
         name: str,
         plaintext: str,
         description: str | None,
     ) -> SecretMetaView:
-        async with self._uow_factory() as uow:
-            service = build_secret_service(uow, self._kek, self._encryptor)
-            view = await service.create(
-                user_id,
-                tenant_id,
-                vault_id,
-                name,
-                plaintext,
-                description,
-            )
-            await uow.commit()
-            return view
+        try:
+            async with self._uow_factory() as uow:
+                service = build_secret_service(uow, self._kek, self._encryptor)
+                view = await service.create(
+                    actor.user_id,
+                    actor.tenant_id,
+                    vault_id,
+                    name,
+                    plaintext,
+                    description,
+                )
+                audit = build_audit_service(uow)
+                await audit.record(
+                    actor=actor,
+                    action="secret.created",
+                    target_type="secret",
+                    target_id=view.id,
+                    metadata={"vault_id": str(vault_id)},
+                )
+                await uow.commit()
+                return view
+        except ForbiddenError as exc:
+            await record_denial_if_needed(self._record_denial, actor, exc)
+            raise
 
 
 class ListSecrets:
@@ -128,30 +145,43 @@ class RevealSecret:
         uow_factory: Callable[[], TenantUnitOfWork],
         kek: KEKProvider,
         encryptor: SecretEncryptor,
+        record_denial: RecordAccessDenial,
     ) -> None:
         self._uow_factory = uow_factory
         self._kek = kek
         self._encryptor = encryptor
+        self._record_denial = record_denial
 
     async def execute(
         self,
-        user_id: uuid.UUID,
-        tenant_id: uuid.UUID,
+        actor: ActorContext,
         vault_id: uuid.UUID,
         secret_id: uuid.UUID,
         version: int | None,
     ) -> tuple[SecretMetaView, str, int]:
-        async with self._uow_factory() as uow:
-            service = build_secret_service(uow, self._kek, self._encryptor)
-            meta, plaintext, revealed_version = await service.reveal(
-                user_id,
-                tenant_id,
-                vault_id,
-                secret_id,
-                version,
-            )
-            await uow.commit()
-            return meta, plaintext, revealed_version
+        try:
+            async with self._uow_factory() as uow:
+                service = build_secret_service(uow, self._kek, self._encryptor)
+                meta, plaintext, revealed_version = await service.reveal(
+                    actor.user_id,
+                    actor.tenant_id,
+                    vault_id,
+                    secret_id,
+                    version,
+                )
+                audit = build_audit_service(uow)
+                await audit.record(
+                    actor=actor,
+                    action="secret.revealed",
+                    target_type="secret",
+                    target_id=secret_id,
+                    metadata={"vault_id": str(vault_id), "version": revealed_version},
+                )
+                await uow.commit()
+                return meta, plaintext, revealed_version
+        except ForbiddenError as exc:
+            await record_denial_if_needed(self._record_denial, actor, exc)
+            raise
 
 
 class RotateSecret:
@@ -160,30 +190,47 @@ class RotateSecret:
         uow_factory: Callable[[], TenantUnitOfWork],
         kek: KEKProvider,
         encryptor: SecretEncryptor,
+        record_denial: RecordAccessDenial,
     ) -> None:
         self._uow_factory = uow_factory
         self._kek = kek
         self._encryptor = encryptor
+        self._record_denial = record_denial
 
     async def execute(
         self,
-        user_id: uuid.UUID,
-        tenant_id: uuid.UUID,
+        actor: ActorContext,
         vault_id: uuid.UUID,
         secret_id: uuid.UUID,
         new_plaintext: str,
     ) -> SecretMetaView:
-        async with self._uow_factory() as uow:
-            service = build_secret_service(uow, self._kek, self._encryptor)
-            view = await service.rotate(
-                user_id,
-                tenant_id,
-                vault_id,
-                secret_id,
-                new_plaintext,
-            )
-            await uow.commit()
-            return view
+        try:
+            async with self._uow_factory() as uow:
+                service = build_secret_service(uow, self._kek, self._encryptor)
+                view, dek_version = await service.rotate(
+                    actor.user_id,
+                    actor.tenant_id,
+                    vault_id,
+                    secret_id,
+                    new_plaintext,
+                )
+                audit = build_audit_service(uow)
+                await audit.record(
+                    actor=actor,
+                    action="secret.rotated",
+                    target_type="secret",
+                    target_id=secret_id,
+                    metadata={
+                        "vault_id": str(vault_id),
+                        "new_version": view.current_version,
+                        "dek_version": dek_version,
+                    },
+                )
+                await uow.commit()
+                return view
+        except ForbiddenError as exc:
+            await record_denial_if_needed(self._record_denial, actor, exc)
+            raise
 
 
 class DeleteSecret:
@@ -192,27 +239,40 @@ class DeleteSecret:
         uow_factory: Callable[[], TenantUnitOfWork],
         kek: KEKProvider,
         encryptor: SecretEncryptor,
+        record_denial: RecordAccessDenial,
     ) -> None:
         self._uow_factory = uow_factory
         self._kek = kek
         self._encryptor = encryptor
+        self._record_denial = record_denial
 
     async def execute(
         self,
-        user_id: uuid.UUID,
-        tenant_id: uuid.UUID,
+        actor: ActorContext,
         vault_id: uuid.UUID,
         secret_id: uuid.UUID,
         *,
         step_up_proven: bool,
     ) -> None:
-        async with self._uow_factory() as uow:
-            service = build_secret_service(uow, self._kek, self._encryptor)
-            await service.delete(
-                user_id,
-                tenant_id,
-                vault_id,
-                secret_id,
-                step_up_proven=step_up_proven,
-            )
-            await uow.commit()
+        try:
+            async with self._uow_factory() as uow:
+                service = build_secret_service(uow, self._kek, self._encryptor)
+                await service.delete(
+                    actor.user_id,
+                    actor.tenant_id,
+                    vault_id,
+                    secret_id,
+                    step_up_proven=step_up_proven,
+                )
+                audit = build_audit_service(uow)
+                await audit.record(
+                    actor=actor,
+                    action="secret.deleted",
+                    target_type="secret",
+                    target_id=secret_id,
+                    metadata={"vault_id": str(vault_id)},
+                )
+                await uow.commit()
+        except ForbiddenError as exc:
+            await record_denial_if_needed(self._record_denial, actor, exc)
+            raise

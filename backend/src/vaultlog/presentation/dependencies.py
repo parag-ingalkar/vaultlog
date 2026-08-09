@@ -11,6 +11,7 @@ from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from vaultlog.application.audit.use_cases import ListAuditEvents, RecordAccessDenial
 from vaultlog.application.identity.use_cases import (
     CompleteMfaLogin,
     ConfirmTotpEnrollment,
@@ -39,6 +40,7 @@ from vaultlog.application.vaults.use_cases import (
     ManageGrant,
     UpdateVault,
 )
+from vaultlog.domain.audit.models import ActorContext
 from vaultlog.domain.identity.exceptions import StepUpRequiredError, TokenValidationError
 from vaultlog.infrastructure.database.identity_unit_of_work import (
     SqlAlchemyIdentityUnitOfWork,
@@ -77,6 +79,13 @@ class Principal:
     tenant_id: UUID
     session_id: UUID
     amr: tuple[str, ...]
+
+    def to_actor(self) -> ActorContext:
+        return ActorContext(
+            user_id=self.user_id,
+            session_id=self.session_id,
+            tenant_id=self.tenant_id,
+        )
 
 
 def get_app_session_factory(request: Request) -> async_sessionmaker[AsyncSession]:
@@ -353,10 +362,17 @@ def get_tenant_uow_factory(
     return factory
 
 
+def get_record_access_denial(
+    uow_factory: Callable[[], SqlAlchemyUnitOfWork] = Depends(get_tenant_uow_factory),
+) -> RecordAccessDenial:
+    return RecordAccessDenial(uow_factory)
+
+
 def get_create_vault(
     uow_factory: Callable[[], SqlAlchemyUnitOfWork] = Depends(get_tenant_uow_factory),
+    record_denial: RecordAccessDenial = Depends(get_record_access_denial),
 ) -> CreateVault:
-    return CreateVault(uow_factory)
+    return CreateVault(uow_factory, record_denial)
 
 
 def get_list_vaults(
@@ -367,28 +383,32 @@ def get_list_vaults(
 
 def get_update_vault(
     uow_factory: Callable[[], SqlAlchemyUnitOfWork] = Depends(get_tenant_uow_factory),
+    record_denial: RecordAccessDenial = Depends(get_record_access_denial),
 ) -> UpdateVault:
-    return UpdateVault(uow_factory)
+    return UpdateVault(uow_factory, record_denial)
 
 
 def get_delete_vault(
     uow_factory: Callable[[], SqlAlchemyUnitOfWork] = Depends(get_tenant_uow_factory),
+    record_denial: RecordAccessDenial = Depends(get_record_access_denial),
 ) -> DeleteVault:
-    return DeleteVault(uow_factory)
+    return DeleteVault(uow_factory, record_denial)
 
 
 def get_manage_grant(
     uow_factory: Callable[[], SqlAlchemyUnitOfWork] = Depends(get_tenant_uow_factory),
+    record_denial: RecordAccessDenial = Depends(get_record_access_denial),
 ) -> ManageGrant:
-    return ManageGrant(uow_factory)
+    return ManageGrant(uow_factory, record_denial)
 
 
 def get_create_secret(
     uow_factory: Callable[[], SqlAlchemyUnitOfWork] = Depends(get_tenant_uow_factory),
     kek: LocalKEKProvider = Depends(get_kek_provider),
     encryptor: AesGcmSecretEncryptor = Depends(get_secret_encryptor),
+    record_denial: RecordAccessDenial = Depends(get_record_access_denial),
 ) -> CreateSecret:
-    return CreateSecret(uow_factory, kek, encryptor)
+    return CreateSecret(uow_factory, kek, encryptor, record_denial)
 
 
 def get_list_secrets(
@@ -403,21 +423,30 @@ def get_reveal_secret(
     uow_factory: Callable[[], SqlAlchemyUnitOfWork] = Depends(get_tenant_uow_factory),
     kek: LocalKEKProvider = Depends(get_kek_provider),
     encryptor: AesGcmSecretEncryptor = Depends(get_secret_encryptor),
+    record_denial: RecordAccessDenial = Depends(get_record_access_denial),
 ) -> RevealSecret:
-    return RevealSecret(uow_factory, kek, encryptor)
+    return RevealSecret(uow_factory, kek, encryptor, record_denial)
 
 
 def get_rotate_secret(
     uow_factory: Callable[[], SqlAlchemyUnitOfWork] = Depends(get_tenant_uow_factory),
     kek: LocalKEKProvider = Depends(get_kek_provider),
     encryptor: AesGcmSecretEncryptor = Depends(get_secret_encryptor),
+    record_denial: RecordAccessDenial = Depends(get_record_access_denial),
 ) -> RotateSecret:
-    return RotateSecret(uow_factory, kek, encryptor)
+    return RotateSecret(uow_factory, kek, encryptor, record_denial)
 
 
 def get_delete_secret(
     uow_factory: Callable[[], SqlAlchemyUnitOfWork] = Depends(get_tenant_uow_factory),
     kek: LocalKEKProvider = Depends(get_kek_provider),
     encryptor: AesGcmSecretEncryptor = Depends(get_secret_encryptor),
+    record_denial: RecordAccessDenial = Depends(get_record_access_denial),
 ) -> DeleteSecret:
-    return DeleteSecret(uow_factory, kek, encryptor)
+    return DeleteSecret(uow_factory, kek, encryptor, record_denial)
+
+
+def get_list_audit_events(
+    uow_factory: Callable[[], SqlAlchemyUnitOfWork] = Depends(get_tenant_uow_factory),
+) -> ListAuditEvents:
+    return ListAuditEvents(uow_factory)

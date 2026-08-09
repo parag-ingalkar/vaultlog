@@ -219,7 +219,7 @@ class SqlAlchemyVaultGrantRepository(VaultGrantRepository):
         membership_id: uuid.UUID,
         permission: VaultPermission,
         granted_by_user_id: uuid.UUID,
-    ) -> None:
+    ) -> bool:
         existing = await self._session.scalar(
             select(VaultGrantModel).where(
                 VaultGrantModel.vault_id == vault_id,
@@ -229,7 +229,7 @@ class SqlAlchemyVaultGrantRepository(VaultGrantRepository):
         if existing is not None:
             existing.permission = permission.value
             existing.granted_by_user_id = granted_by_user_id
-            return
+            return False
 
         self._session.add(
             VaultGrantModel(
@@ -240,6 +240,7 @@ class SqlAlchemyVaultGrantRepository(VaultGrantRepository):
                 granted_by_user_id=granted_by_user_id,
             )
         )
+        return True
 
     async def delete(
         self,

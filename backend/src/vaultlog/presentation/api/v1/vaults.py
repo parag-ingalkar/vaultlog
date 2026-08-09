@@ -57,8 +57,7 @@ async def create_vault(
     use_case: CreateVault = Depends(get_create_vault),
 ) -> VaultResponse:
     view = await use_case.execute(
-        principal.user_id,
-        principal.tenant_id,
+        principal.to_actor(),
         body.name,
         body.description,
     )
@@ -102,8 +101,7 @@ async def update_vault(
 
     clear_description = "description" in body.model_fields_set and body.description is None
     view = await use_case.execute(
-        principal.user_id,
-        principal.tenant_id,
+        principal.to_actor(),
         vault_id,
         name=body.name,
         description=body.description,
@@ -124,8 +122,7 @@ async def delete_vault(
     use_case: DeleteVault = Depends(get_delete_vault),
 ) -> None:
     await use_case.execute(
-        principal.user_id,
-        principal.tenant_id,
+        principal.to_actor(),
         vault_id,
         step_up_proven=True,
     )
@@ -139,8 +136,7 @@ async def upsert_grant(
     use_case: ManageGrant = Depends(get_manage_grant),
 ) -> None:
     await use_case.grant(
-        principal.user_id,
-        principal.tenant_id,
+        principal.to_actor(),
         vault_id,
         body.membership_id,
         body.permission,
@@ -155,8 +151,7 @@ async def revoke_grant(
     use_case: ManageGrant = Depends(get_manage_grant),
 ) -> None:
     await use_case.revoke(
-        principal.user_id,
-        principal.tenant_id,
+        principal.to_actor(),
         vault_id,
         membership_id,
     )

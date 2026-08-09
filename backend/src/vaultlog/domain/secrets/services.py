@@ -122,7 +122,7 @@ class SecretService:
         vault_id: uuid.UUID,
         secret_id: uuid.UUID,
         new_plaintext: str,
-    ) -> SecretMetaView:
+    ) -> tuple[SecretMetaView, int]:
         await self._policy.require_vault(user_id, tenant_id, vault_id, Action.SECRET_WRITE)
 
         secret = await self._secrets.get_active_for_update(secret_id, vault_id, tenant_id)
@@ -153,7 +153,7 @@ class SecretService:
             tenant_id=tenant_id,
             current_version=new_version,
         )
-        return _meta(updated)
+        return _meta(updated), dek_version
 
     async def delete(
         self,

@@ -9,6 +9,7 @@ from vaultlog.domain.access.ports import (
     VaultAccessPort,
     VaultGrantAccessPort,
 )
+from vaultlog.domain.audit.ports import AuditLedgerPort
 from vaultlog.domain.secrets.ports import (
     SecretRepository,
     SecretVersionRepository,
@@ -26,6 +27,7 @@ class TenantUnitOfWork(UnitOfWork, Protocol):
     secrets: SecretRepository
     secret_versions: SecretVersionRepository
     tenant_keys: TenantKeyRepository
+    audit: AuditLedgerPort
 
     async def __aenter__(self) -> Self: ...
 

@@ -34,6 +34,7 @@ class Action(StrEnum):
     SECRET_DELETE = "secret.delete"
     MEMBER_INVITE = "member.invite"
     MEMBER_REMOVE = "member.remove"
+    AUDIT_READ = "audit.read"
 
 
 @dataclass(frozen=True)

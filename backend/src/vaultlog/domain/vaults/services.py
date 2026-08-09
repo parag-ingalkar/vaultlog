@@ -128,14 +128,14 @@ class VaultService:
         vault_id: uuid.UUID,
         target_membership_id: uuid.UUID,
         permission: VaultPermission,
-    ) -> None:
+    ) -> bool:
         await self._policy.require_vault(actor_user_id, tenant_id, vault_id, Action.GRANT_MANAGE)
 
         target_tenant = await self._memberships.get_membership_tenant(target_membership_id)
         if target_tenant != tenant_id:
             raise NotFoundError("Membership not found")
 
-        await self._grants.upsert(
+        return await self._grants.upsert(
             tenant_id=tenant_id,
             vault_id=vault_id,
             membership_id=target_membership_id,
