@@ -238,8 +238,30 @@ class FakeOrganizationRepository:
         return org_id
 
 
-def build_service(store: InMemoryStore | None = None) -> tuple[IdentityService, InMemoryStore]:
+class FakeRateLimitGate:
+    def __init__(self, *, allow: bool = True) -> None:
+        self.allow = allow
+        self.calls: list[tuple[str, int, int, bool]] = []
+
+    async def check(
+        self,
+        key: str,
+        *,
+        capacity: int,
+        window_seconds: int,
+        fail_closed: bool = False,
+    ) -> bool:
+        self.calls.append((key, capacity, window_seconds, fail_closed))
+        return self.allow
+
+
+def build_service(
+    store: InMemoryStore | None = None,
+    *,
+    rate_limiter: FakeRateLimitGate | None = None,
+) -> tuple[IdentityService, InMemoryStore, FakeRateLimitGate]:
     store = store or InMemoryStore()
+    limiter = rate_limiter or FakeRateLimitGate()
     service = IdentityService(
         users=FakeUserRepository(store),
         memberships=FakeMembershipRepository(store),
@@ -249,13 +271,14 @@ def build_service(store: InMemoryStore | None = None) -> tuple[IdentityService, 
         passwords=FakePasswordHasher(),
         tokens=FakeTokenIssuer(),
         refresh_ttl_days=30,
+        rate_limiter=limiter,
     )
-    return service, store
+    return service, store, limiter
 
 
 @pytest.mark.asyncio
 async def test_register_creates_user_org_and_membership() -> None:
-    service, store = build_service()
+    service, store, _ = build_service()
     user_id, _tenant_id = await service.register("Ada@Example.com", "correct horse battery", "Acme")
     user = store.users[user_id]
     assert user.email == "ada@example.com"
@@ -264,14 +287,14 @@ async def test_register_creates_user_org_and_membership() -> None:
 
 @pytest.mark.asyncio
 async def test_register_rejects_weak_password() -> None:
-    service, _ = build_service()
+    service, _store, _ = build_service()
     with pytest.raises(PasswordPolicyError):
         await service.register("ada@example.com", "short", "Acme")
 
 
 @pytest.mark.asyncio
 async def test_register_conflict_on_duplicate_email() -> None:
-    service, _ = build_service()
+    service, _store, _ = build_service()
     await service.register("ada@example.com", "correct horse battery", "Acme")
     with pytest.raises(RegistrationConflictError):
         await service.register("ada@example.com", "correct horse battery", "Other")
@@ -279,7 +302,7 @@ async def test_register_conflict_on_duplicate_email() -> None:
 
 @pytest.mark.asyncio
 async def test_login_returns_token_pair() -> None:
-    service, _ = build_service()
+    service, _store, _ = build_service()
     await service.register("ada@example.com", "correct horse battery", "Acme")
     result = await service.login("ada@example.com", "correct horse battery", "pytest")
     assert result.kind == "tokens"
@@ -290,7 +313,7 @@ async def test_login_returns_token_pair() -> None:
 
 @pytest.mark.asyncio
 async def test_wrong_password_and_unknown_email_same_error() -> None:
-    service, _ = build_service()
+    service, _store, _ = build_service()
     await service.register("ada@example.com", "correct horse battery", "Acme")
     with pytest.raises(AuthenticationError, match="Invalid email or password"):
         await service.login("ada@example.com", "wrong password!!", None)
@@ -300,7 +323,7 @@ async def test_wrong_password_and_unknown_email_same_error() -> None:
 
 @pytest.mark.asyncio
 async def test_refresh_rotation_consumes_old_token() -> None:
-    service, store = build_service()
+    service, store, _ = build_service()
     await service.register("ada@example.com", "correct horse battery", "Acme")
     login_result = await service.login("ada@example.com", "correct horse battery", "pytest")
     pair1 = login_result.pair
@@ -318,7 +341,7 @@ async def test_refresh_rotation_consumes_old_token() -> None:
 
 @pytest.mark.asyncio
 async def test_refresh_reuse_revokes_session_family() -> None:
-    service, store = build_service()
+    service, store, _ = build_service()
     await service.register("ada@example.com", "correct horse battery", "Acme")
     login_result = await service.login("ada@example.com", "correct horse battery", "pytest")
     pair1 = login_result.pair
@@ -338,7 +361,7 @@ async def test_refresh_reuse_revokes_session_family() -> None:
 
 @pytest.mark.asyncio
 async def test_logout_revokes_session() -> None:
-    service, store = build_service()
+    service, store, _ = build_service()
     await service.register("ada@example.com", "correct horse battery", "Acme")
     login_result = await service.login("ada@example.com", "correct horse battery", "pytest")
     pair = login_result.pair
@@ -352,7 +375,7 @@ async def test_logout_revokes_session() -> None:
 
 @pytest.mark.asyncio
 async def test_expired_refresh_revokes_session() -> None:
-    service, store = build_service()
+    service, store, _ = build_service()
     await service.register("ada@example.com", "correct horse battery", "Acme")
     login_result = await service.login("ada@example.com", "correct horse battery", "pytest")
     pair = login_result.pair
@@ -373,6 +396,16 @@ async def test_expired_refresh_revokes_session() -> None:
         await service.refresh(pair.refresh_token)
     session = store.sessions[token.session_id]
     assert session.revocation_reason == "refresh_expired"
+
+
+@pytest.mark.asyncio
+async def test_login_account_rate_limit_returns_opaque_auth_error() -> None:
+    limiter = FakeRateLimitGate(allow=False)
+    service, _store, _ = build_service(rate_limiter=limiter)
+    await service.register("ada@example.com", "correct horse battery", "Acme")
+    with pytest.raises(AuthenticationError, match="Invalid email or password"):
+        await service.login("ada@example.com", "correct horse battery", "pytest")
+    assert limiter.calls[0][0] == "rl:login:acct:ada@example.com"
 
 
 @pytest.mark.asyncio

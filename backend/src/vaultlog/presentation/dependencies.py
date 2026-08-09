@@ -4,7 +4,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from enum import StrEnum
 from functools import lru_cache
-from typing import cast
+from typing import Literal, cast
 from uuid import UUID
 
 from fastapi import Depends, HTTPException, Request, status
@@ -48,6 +48,7 @@ from vaultlog.infrastructure.database.identity_unit_of_work import (
 from vaultlog.infrastructure.database.unit_of_work import SqlAlchemyUnitOfWork
 from vaultlog.infrastructure.security.mfa import PyotpTotpVerifier
 from vaultlog.infrastructure.security.passwords import Argon2Hasher
+from vaultlog.infrastructure.security.rate_limit import RedisRateLimiter
 from vaultlog.infrastructure.security.seed_encryption import AesGcmSeedEncryptor
 from vaultlog.infrastructure.security.tokens import TokenService
 from vaultlog.infrastructure.security.vault_crypto import (
@@ -147,6 +148,68 @@ def get_tenant_uow_factory_for_tenant(
     return factory
 
 
+async def get_rate_limiter(request: Request) -> RedisRateLimiter:
+    return cast(RedisRateLimiter, request.app.state.rate_limiter)
+
+
+async def _enforce_rate_limit(
+    limiter: RedisRateLimiter,
+    key: str,
+    *,
+    capacity: int,
+    window_seconds: int,
+    fail_closed: bool,
+) -> None:
+    allowed = await limiter.check(
+        key,
+        capacity=capacity,
+        window_seconds=window_seconds,
+        fail_closed=fail_closed,
+    )
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many requests",
+            headers={"Retry-After": str(window_seconds)},
+        )
+
+
+def rate_limit(
+    bucket: str,
+    *,
+    capacity: int,
+    window_seconds: int,
+    fail_closed: bool = False,
+    by: Literal["ip", "user"] = "ip",
+) -> Callable[..., Awaitable[None]]:
+    async def dependency_ip(
+        request: Request,
+        limiter: RedisRateLimiter = Depends(get_rate_limiter),
+    ) -> None:
+        identity = request.client.host if request.client else "unknown"
+        await _enforce_rate_limit(
+            limiter,
+            f"rl:{bucket}:{identity}",
+            capacity=capacity,
+            window_seconds=window_seconds,
+            fail_closed=fail_closed,
+        )
+
+    async def dependency_user(
+        principal: Principal = Depends(current_principal),
+        limiter: RedisRateLimiter = Depends(get_rate_limiter),
+    ) -> None:
+        await _enforce_rate_limit(
+            limiter,
+            f"rl:{bucket}:{principal.user_id}",
+            capacity=capacity,
+            window_seconds=window_seconds,
+            fail_closed=fail_closed,
+        )
+
+    return dependency_user if by == "user" else dependency_ip
+
+
 def get_register_user(
     uow_factory: Callable[[], IdentityUnitOfWork] = Depends(get_identity_uow_factory),
     tenant_uow_factory: Callable[[UUID], SqlAlchemyUnitOfWork] = Depends(
@@ -156,6 +219,7 @@ def get_register_user(
     tokens: TokenService = Depends(get_token_service),
     kek: LocalKEKProvider = Depends(get_kek_provider),
     encryptor: AesGcmSecretEncryptor = Depends(get_secret_encryptor),
+    rate_limiter: RedisRateLimiter = Depends(get_rate_limiter),
     settings: Settings = Depends(get_settings),
 ) -> RegisterUser:
     provision = ProvisionTenantKey(tenant_uow_factory, kek, encryptor)
@@ -164,6 +228,7 @@ def get_register_user(
         passwords,
         tokens,
         settings.refresh_token_ttl_days,
+        rate_limiter,
         provision_tenant_key=provision,
     )
 
@@ -172,6 +237,7 @@ def get_login_user(
     uow_factory: Callable[[], IdentityUnitOfWork] = Depends(get_identity_uow_factory),
     passwords: Argon2Hasher = Depends(get_password_hasher),
     tokens: TokenService = Depends(get_token_service),
+    rate_limiter: RedisRateLimiter = Depends(get_rate_limiter),
     settings: Settings = Depends(get_settings),
 ) -> LoginUser:
     return LoginUser(
@@ -179,6 +245,7 @@ def get_login_user(
         passwords,
         tokens,
         settings.refresh_token_ttl_days,
+        rate_limiter,
     )
 
 
@@ -186,6 +253,7 @@ def get_refresh_tokens(
     uow_factory: Callable[[], IdentityUnitOfWork] = Depends(get_identity_uow_factory),
     passwords: Argon2Hasher = Depends(get_password_hasher),
     tokens: TokenService = Depends(get_token_service),
+    rate_limiter: RedisRateLimiter = Depends(get_rate_limiter),
     settings: Settings = Depends(get_settings),
 ) -> RefreshTokens:
     return RefreshTokens(
@@ -193,6 +261,7 @@ def get_refresh_tokens(
         passwords,
         tokens,
         settings.refresh_token_ttl_days,
+        rate_limiter,
     )
 
 
@@ -200,6 +269,7 @@ def get_logout_session(
     uow_factory: Callable[[], IdentityUnitOfWork] = Depends(get_identity_uow_factory),
     passwords: Argon2Hasher = Depends(get_password_hasher),
     tokens: TokenService = Depends(get_token_service),
+    rate_limiter: RedisRateLimiter = Depends(get_rate_limiter),
     settings: Settings = Depends(get_settings),
 ) -> LogoutSession:
     return LogoutSession(
@@ -207,6 +277,7 @@ def get_logout_session(
         passwords,
         tokens,
         settings.refresh_token_ttl_days,
+        rate_limiter,
     )
 
 
@@ -215,6 +286,7 @@ def get_start_totp_enrollment(
     seed_encryptor: AesGcmSeedEncryptor = Depends(get_seed_encryptor),
     totp_verifier: PyotpTotpVerifier = Depends(get_totp_verifier),
     tokens: TokenService = Depends(get_token_service),
+    rate_limiter: RedisRateLimiter = Depends(get_rate_limiter),
     settings: Settings = Depends(get_settings),
 ) -> StartTotpEnrollment:
     return StartTotpEnrollment(
@@ -223,6 +295,7 @@ def get_start_totp_enrollment(
         totp_verifier,
         tokens,
         settings.refresh_token_ttl_days,
+        rate_limiter,
     )
 
 
@@ -231,6 +304,7 @@ def get_confirm_totp_enrollment(
     seed_encryptor: AesGcmSeedEncryptor = Depends(get_seed_encryptor),
     totp_verifier: PyotpTotpVerifier = Depends(get_totp_verifier),
     tokens: TokenService = Depends(get_token_service),
+    rate_limiter: RedisRateLimiter = Depends(get_rate_limiter),
     settings: Settings = Depends(get_settings),
 ) -> ConfirmTotpEnrollment:
     return ConfirmTotpEnrollment(
@@ -239,6 +313,7 @@ def get_confirm_totp_enrollment(
         totp_verifier,
         tokens,
         settings.refresh_token_ttl_days,
+        rate_limiter,
     )
 
 
@@ -247,6 +322,7 @@ def get_complete_mfa_login(
     seed_encryptor: AesGcmSeedEncryptor = Depends(get_seed_encryptor),
     totp_verifier: PyotpTotpVerifier = Depends(get_totp_verifier),
     tokens: TokenService = Depends(get_token_service),
+    rate_limiter: RedisRateLimiter = Depends(get_rate_limiter),
     settings: Settings = Depends(get_settings),
 ) -> CompleteMfaLogin:
     return CompleteMfaLogin(
@@ -255,6 +331,7 @@ def get_complete_mfa_login(
         totp_verifier,
         tokens,
         settings.refresh_token_ttl_days,
+        rate_limiter,
     )
 
 
@@ -263,6 +340,7 @@ def get_step_up_verify(
     seed_encryptor: AesGcmSeedEncryptor = Depends(get_seed_encryptor),
     totp_verifier: PyotpTotpVerifier = Depends(get_totp_verifier),
     tokens: TokenService = Depends(get_token_service),
+    rate_limiter: RedisRateLimiter = Depends(get_rate_limiter),
     settings: Settings = Depends(get_settings),
 ) -> StepUpVerify:
     return StepUpVerify(
@@ -271,6 +349,7 @@ def get_step_up_verify(
         totp_verifier,
         tokens,
         settings.refresh_token_ttl_days,
+        rate_limiter,
     )
 
 
@@ -279,6 +358,7 @@ def get_disable_mfa(
     seed_encryptor: AesGcmSeedEncryptor = Depends(get_seed_encryptor),
     totp_verifier: PyotpTotpVerifier = Depends(get_totp_verifier),
     tokens: TokenService = Depends(get_token_service),
+    rate_limiter: RedisRateLimiter = Depends(get_rate_limiter),
     settings: Settings = Depends(get_settings),
 ) -> DisableMfa:
     return DisableMfa(
@@ -287,6 +367,7 @@ def get_disable_mfa(
         totp_verifier,
         tokens,
         settings.refresh_token_ttl_days,
+        rate_limiter,
     )
 
 

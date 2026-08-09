@@ -29,6 +29,7 @@ from vaultlog.infrastructure.database.identity_unit_of_work import (
 from vaultlog.infrastructure.database.unit_of_work import SqlAlchemyUnitOfWork
 from vaultlog.infrastructure.security.mfa import PyotpTotpVerifier
 from vaultlog.infrastructure.security.passwords import Argon2Hasher
+from vaultlog.infrastructure.security.rate_limit import RedisRateLimiter
 from vaultlog.infrastructure.security.seed_encryption import AesGcmSeedEncryptor
 from vaultlog.infrastructure.security.tokens import TokenService
 from vaultlog.infrastructure.security.vault_crypto import (
@@ -87,11 +88,28 @@ def totp_verifier() -> PyotpTotpVerifier:
     return PyotpTotpVerifier()
 
 
+def _identity_kwargs(
+    identity_uow_factory,
+    passwords,
+    tokens,
+    limiter: RedisRateLimiter,
+) -> dict:
+    settings = get_settings()
+    return {
+        "uow_factory": identity_uow_factory,
+        "passwords": passwords,
+        "tokens": tokens,
+        "refresh_ttl_days": settings.refresh_token_ttl_days,
+        "rate_limiter": limiter,
+    }
+
+
 def _mfa_kwargs(
     identity_uow_factory,
     seed_encryptor,
     totp_verifier,
     tokens,
+    limiter: RedisRateLimiter,
 ) -> dict:
     settings = get_settings()
     return {
@@ -100,6 +118,7 @@ def _mfa_kwargs(
         "totp_verifier": totp_verifier,
         "tokens": tokens,
         "refresh_ttl_days": settings.refresh_token_ttl_days,
+        "rate_limiter": limiter,
     }
 
 
@@ -119,6 +138,7 @@ def register_user(
     tenant_uow_factory_for_tenant,
     passwords,
     tokens,
+    limiter,
 ) -> RegisterUser:
     settings = get_settings()
     provision = ProvisionTenantKey(
@@ -127,45 +147,24 @@ def register_user(
         AesGcmSecretEncryptor(),
     )
     return RegisterUser(
-        identity_uow_factory,
-        passwords,
-        tokens,
-        settings.refresh_token_ttl_days,
+        **_identity_kwargs(identity_uow_factory, passwords, tokens, limiter),
         provision_tenant_key=provision,
     )
 
 
 @pytest.fixture()
-def login_user(identity_uow_factory, passwords, tokens) -> LoginUser:
-    settings = get_settings()
-    return LoginUser(
-        identity_uow_factory,
-        passwords,
-        tokens,
-        settings.refresh_token_ttl_days,
-    )
+def login_user(identity_uow_factory, passwords, tokens, limiter) -> LoginUser:
+    return LoginUser(**_identity_kwargs(identity_uow_factory, passwords, tokens, limiter))
 
 
 @pytest.fixture()
-def refresh_tokens(identity_uow_factory, passwords, tokens) -> RefreshTokens:
-    settings = get_settings()
-    return RefreshTokens(
-        identity_uow_factory,
-        passwords,
-        tokens,
-        settings.refresh_token_ttl_days,
-    )
+def refresh_tokens(identity_uow_factory, passwords, tokens, limiter) -> RefreshTokens:
+    return RefreshTokens(**_identity_kwargs(identity_uow_factory, passwords, tokens, limiter))
 
 
 @pytest.fixture()
-def logout_session(identity_uow_factory, passwords, tokens) -> LogoutSession:
-    settings = get_settings()
-    return LogoutSession(
-        identity_uow_factory,
-        passwords,
-        tokens,
-        settings.refresh_token_ttl_days,
-    )
+def logout_session(identity_uow_factory, passwords, tokens, limiter) -> LogoutSession:
+    return LogoutSession(**_identity_kwargs(identity_uow_factory, passwords, tokens, limiter))
 
 
 @pytest.fixture()
@@ -174,9 +173,11 @@ def start_totp_enrollment(
     seed_encryptor,
     totp_verifier,
     tokens,
+    limiter,
 ) -> StartTotpEnrollment:
-    kwargs = _mfa_kwargs(identity_uow_factory, seed_encryptor, totp_verifier, tokens)
-    return StartTotpEnrollment(**kwargs)
+    return StartTotpEnrollment(
+        **_mfa_kwargs(identity_uow_factory, seed_encryptor, totp_verifier, tokens, limiter)
+    )
 
 
 @pytest.fixture()
@@ -185,9 +186,11 @@ def confirm_totp_enrollment(
     seed_encryptor,
     totp_verifier,
     tokens,
+    limiter,
 ) -> ConfirmTotpEnrollment:
-    kwargs = _mfa_kwargs(identity_uow_factory, seed_encryptor, totp_verifier, tokens)
-    return ConfirmTotpEnrollment(**kwargs)
+    return ConfirmTotpEnrollment(
+        **_mfa_kwargs(identity_uow_factory, seed_encryptor, totp_verifier, tokens, limiter)
+    )
 
 
 @pytest.fixture()
@@ -196,9 +199,11 @@ def complete_mfa_login(
     seed_encryptor,
     totp_verifier,
     tokens,
+    limiter,
 ) -> CompleteMfaLogin:
-    kwargs = _mfa_kwargs(identity_uow_factory, seed_encryptor, totp_verifier, tokens)
-    return CompleteMfaLogin(**kwargs)
+    return CompleteMfaLogin(
+        **_mfa_kwargs(identity_uow_factory, seed_encryptor, totp_verifier, tokens, limiter)
+    )
 
 
 @pytest.fixture()
@@ -207,8 +212,11 @@ def step_up_verify(
     seed_encryptor,
     totp_verifier,
     tokens,
+    limiter,
 ) -> StepUpVerify:
-    return StepUpVerify(**_mfa_kwargs(identity_uow_factory, seed_encryptor, totp_verifier, tokens))
+    return StepUpVerify(
+        **_mfa_kwargs(identity_uow_factory, seed_encryptor, totp_verifier, tokens, limiter)
+    )
 
 
 @pytest.fixture()
@@ -217,5 +225,8 @@ def disable_mfa(
     seed_encryptor,
     totp_verifier,
     tokens,
+    limiter,
 ) -> DisableMfa:
-    return DisableMfa(**_mfa_kwargs(identity_uow_factory, seed_encryptor, totp_verifier, tokens))
+    return DisableMfa(
+        **_mfa_kwargs(identity_uow_factory, seed_encryptor, totp_verifier, tokens, limiter)
+    )

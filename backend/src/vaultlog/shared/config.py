@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     port: int = Field(default=8000, ge=1, le=65535)
     cors_origins: str = "http://localhost:5173"
     service_name: str = "vaultlog-api"
+    redis_url: str = "redis://localhost:6379/0"
 
     database_host: str = "localhost"
     database_port: int = Field(default=5432, ge=1, le=65535)

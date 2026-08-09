@@ -12,6 +12,7 @@ from vaultlog.application.secrets.use_cases import (
     RevealSecret,
     RotateSecret,
 )
+from vaultlog.domain.identity.rate_limits import REVEAL_CAPACITY, REVEAL_WINDOW_SECONDS
 from vaultlog.presentation.dependencies import (
     Principal,
     StepUpPurpose,
@@ -21,6 +22,7 @@ from vaultlog.presentation.dependencies import (
     get_list_secrets,
     get_reveal_secret,
     get_rotate_secret,
+    rate_limit,
     require_step_up,
 )
 
@@ -97,7 +99,21 @@ async def list_secrets(
     ]
 
 
-@router.post("/{secret_id}/reveal", response_model=RevealResponse)
+@router.post(
+    "/{secret_id}/reveal",
+    response_model=RevealResponse,
+    dependencies=[
+        Depends(
+            rate_limit(
+                "reveal",
+                capacity=REVEAL_CAPACITY,
+                window_seconds=REVEAL_WINDOW_SECONDS,
+                fail_closed=False,
+                by="user",
+            )
+        )
+    ],
+)
 async def reveal_secret(
     vault_id: uuid.UUID,
     secret_id: uuid.UUID,

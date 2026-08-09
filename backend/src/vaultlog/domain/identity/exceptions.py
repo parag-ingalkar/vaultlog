@@ -31,3 +31,7 @@ class MfaVerificationError(DomainError):
 
 class StepUpRequiredError(DomainError):
     """Raised when a sensitive operation lacks valid step-up proof."""
+
+
+class ServiceUnavailableError(DomainError):
+    """Raised when a fail-closed dependency (e.g. rate limiter) is unavailable."""

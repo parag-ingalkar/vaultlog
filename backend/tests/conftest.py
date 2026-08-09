@@ -5,7 +5,9 @@ from __future__ import annotations
 import os
 
 os.environ.setdefault("ENVIRONMENT", "test")
+os.environ.setdefault("DEBUG", "false")
 os.environ.setdefault("DATABASE_NAME", "vaultlog_test")
+os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
 os.environ.setdefault("MFA_KEK_B64", "6wAJZT3eh0Dqko9JxuXfLr8Tmct0ZwrYqvmQuwkGZwU=")
 os.environ.setdefault("MASTER_KEY_B64", "7xBKaU4fi1Erlp9KyvYgMs9UnDu0ZxsZrwnRvxlHaxV=")
 
@@ -16,6 +18,7 @@ get_settings.cache_clear()
 pytest_plugins = [
     "tests.integration.fixtures.database",
     "tests.integration.fixtures.migrations",
+    "tests.integration.fixtures.redis",
     "tests.integration.fixtures.sessions",
 ]
 

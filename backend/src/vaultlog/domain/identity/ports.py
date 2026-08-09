@@ -97,6 +97,17 @@ class OrganizationRepository(Protocol):
     async def add(self, name: str) -> uuid.UUID: ...
 
 
+class RateLimitGate(Protocol):
+    async def check(
+        self,
+        key: str,
+        *,
+        capacity: int,
+        window_seconds: int,
+        fail_closed: bool = False,
+    ) -> bool: ...
+
+
 class PasswordHasher(Protocol):
     def hash(self, plaintext: str) -> str: ...
 

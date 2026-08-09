@@ -16,6 +16,18 @@ from vaultlog.application.identity.use_cases import (
 )
 from vaultlog.domain.identity.exceptions import AuthenticationError
 from vaultlog.domain.identity.models import TokenPair
+from vaultlog.domain.identity.rate_limits import (
+    LOGIN_IP_CAPACITY,
+    LOGIN_IP_WINDOW_SECONDS,
+    MFA_ENROLL_CAPACITY,
+    MFA_ENROLL_WINDOW_SECONDS,
+    REFRESH_IP_CAPACITY,
+    REFRESH_IP_WINDOW_SECONDS,
+    REGISTER_IP_CAPACITY,
+    REGISTER_IP_WINDOW_SECONDS,
+    STEP_UP_CAPACITY,
+    STEP_UP_WINDOW_SECONDS,
+)
 from vaultlog.presentation.dependencies import (
     Principal,
     StepUpPurpose,
@@ -29,6 +41,7 @@ from vaultlog.presentation.dependencies import (
     get_register_user,
     get_start_totp_enrollment,
     get_step_up_verify,
+    rate_limit,
     require_step_up,
 )
 from vaultlog.shared.config import Settings, get_settings
@@ -120,6 +133,16 @@ def _clear_refresh_cookie(response: Response, *, secure: bool) -> None:
     "/register",
     status_code=status.HTTP_201_CREATED,
     response_model=RegisterResponse,
+    dependencies=[
+        Depends(
+            rate_limit(
+                "register",
+                capacity=REGISTER_IP_CAPACITY,
+                window_seconds=REGISTER_IP_WINDOW_SECONDS,
+                fail_closed=True,
+            )
+        )
+    ],
 )
 async def register(
     body: RegisterRequest,
@@ -129,7 +152,20 @@ async def register(
     return RegisterResponse(user_id=str(user_id))
 
 
-@router.post("/login", response_model=AccessTokenResponse | MfaRequiredResponse)
+@router.post(
+    "/login",
+    response_model=AccessTokenResponse | MfaRequiredResponse,
+    dependencies=[
+        Depends(
+            rate_limit(
+                "login",
+                capacity=LOGIN_IP_CAPACITY,
+                window_seconds=LOGIN_IP_WINDOW_SECONDS,
+                fail_closed=True,
+            )
+        )
+    ],
+)
 async def login(
     body: LoginRequest,
     request: Request,
@@ -154,7 +190,20 @@ async def login(
     )
 
 
-@router.post("/refresh", response_model=AccessTokenResponse)
+@router.post(
+    "/refresh",
+    response_model=AccessTokenResponse,
+    dependencies=[
+        Depends(
+            rate_limit(
+                "refresh",
+                capacity=REFRESH_IP_CAPACITY,
+                window_seconds=REFRESH_IP_WINDOW_SECONDS,
+                fail_closed=False,
+            )
+        )
+    ],
+)
 async def refresh(
     request: Request,
     response: Response,
@@ -189,7 +238,21 @@ async def logout(
     _clear_refresh_cookie(response, secure=settings.refresh_cookie_secure)
 
 
-@router.post("/mfa/enroll", response_model=EnrollmentResponse)
+@router.post(
+    "/mfa/enroll",
+    response_model=EnrollmentResponse,
+    dependencies=[
+        Depends(
+            rate_limit(
+                "mfa-enroll",
+                capacity=MFA_ENROLL_CAPACITY,
+                window_seconds=MFA_ENROLL_WINDOW_SECONDS,
+                fail_closed=True,
+                by="user",
+            )
+        )
+    ],
+)
 async def mfa_enroll(
     user_ctx: tuple[Principal, str] = Depends(current_user),
     use_case: StartTotpEnrollment = Depends(get_start_totp_enrollment),
@@ -230,7 +293,21 @@ async def mfa_verify(
     )
 
 
-@router.post("/step-up/verify", response_model=StepUpResponse)
+@router.post(
+    "/step-up/verify",
+    response_model=StepUpResponse,
+    dependencies=[
+        Depends(
+            rate_limit(
+                "step-up",
+                capacity=STEP_UP_CAPACITY,
+                window_seconds=STEP_UP_WINDOW_SECONDS,
+                fail_closed=True,
+                by="user",
+            )
+        )
+    ],
+)
 async def step_up_verify(
     body: StepUpRequest,
     user_ctx: tuple[Principal, str] = Depends(current_user),

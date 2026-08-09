@@ -1,0 +1,104 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+defaults:
+  run:
+    working-directory: backend
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --all-groups
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy
+
+  security-scans:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --all-groups
+      - name: Dependency vulnerability audit
+        run: uv run pip-audit --strict
+      - name: Secret scanning
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITLEAKS_ENABLE_COMMENTS: "false"
+
+  test:
+    runs-on: ubuntu-latest
+    needs: [quality, security-scans]
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: vaultlog
+          POSTGRES_USER: postgres_bootstrap
+          POSTGRES_PASSWORD: postgres_bootstrap_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres_bootstrap -d vaultlog"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      ENVIRONMENT: test
+      DATABASE_HOST: localhost
+      DATABASE_PORT: 5432
+      DATABASE_NAME: vaultlog_test
+      DATABASE_USER: vaultlog_app
+      DATABASE_PASSWORD: vaultlog_app_password
+      MIGRATION_DATABASE_USER: vaultlog_owner
+      MIGRATION_DATABASE_PASSWORD: vaultlog_owner_password
+      REDIS_URL: redis://localhost:6379/0
+      MFA_KEK_B64: 6wAJZT3eh0Dqko9JxuXfLr8Tmct0ZwrYqvmQuwkGZwU=
+      MASTER_KEY_B64: 7xBKaU4fi1Erlp9KyvYgMs9UnDu0ZxsZrwnRvxlHaxV=
+      TEST_DATABASE_BOOTSTRAP_USER: postgres_bootstrap
+      TEST_DATABASE_BOOTSTRAP_PASSWORD: postgres_bootstrap_password
+      REFRESH_COOKIE_SECURE: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --all-groups
+
+      - name: Provision CI database roles
+        run: |
+          PGPASSWORD=postgres_bootstrap_password psql \
+            "postgresql://postgres_bootstrap@localhost:5432/vaultlog" \
+            -v ON_ERROR_STOP=1 \
+            -f docker/postgres/init.sql
+
+      - name: Generate test keys
+        run: |
+          mkdir -p keys
+          openssl genrsa -out keys/jwt-private.pem 2048
+          openssl rsa -in keys/jwt-private.pem -pubout -out keys/jwt-public.pem
+
+      - name: Migrations apply cleanly from empty schema
+        run: uv run alembic upgrade head
+
+      - name: Full test suite
+        run: uv run pytest --cov=vaultlog --cov-report=term-missing
+
+      - name: Security regression suite
+        run: uv run pytest tests/security -v
+
+      - name: Audit chain verification smoke test
+        run: uv run pytest tests/integration/test_audit_ledger.py -v

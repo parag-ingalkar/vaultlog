@@ -16,6 +16,7 @@ from vaultlog.domain.identity.ports import (
     MembershipRepository,
     OrganizationRepository,
     PasswordHasher,
+    RateLimitGate,
     RecoveryCodeRepository,
     RefreshTokenRepository,
     SeedEncryptor,
@@ -24,6 +25,12 @@ from vaultlog.domain.identity.ports import (
     TotpSecretRepository,
     TotpVerifier,
     UserRepository,
+)
+from vaultlog.domain.identity.rate_limits import (
+    LOGIN_ACCOUNT_CAPACITY,
+    LOGIN_ACCOUNT_WINDOW_SECONDS,
+    MFA_VERIFY_CAPACITY,
+    MFA_VERIFY_WINDOW_SECONDS,
 )
 
 # Dummy Argon2id hash used to equalize timing when the user does not exist.
@@ -73,6 +80,7 @@ class IdentityService:
         passwords: PasswordHasher,
         tokens: TokenIssuer,
         refresh_ttl_days: int,
+        rate_limiter: RateLimitGate,
     ) -> None:
         self._users = users
         self._memberships = memberships
@@ -82,6 +90,7 @@ class IdentityService:
         self._passwords = passwords
         self._tokens = tokens
         self._refresh_ttl_days = refresh_ttl_days
+        self._rate_limiter = rate_limiter
 
     async def register(
         self,
@@ -109,7 +118,17 @@ class IdentityService:
         password: str,
         user_agent: str | None,
     ) -> LoginResult:
-        user = await self._users.get_by_email(email.strip().lower())
+        normalized = email.strip().lower()
+        allowed = await self._rate_limiter.check(
+            f"rl:login:acct:{normalized}",
+            capacity=LOGIN_ACCOUNT_CAPACITY,
+            window_seconds=LOGIN_ACCOUNT_WINDOW_SECONDS,
+            fail_closed=True,
+        )
+        if not allowed:
+            raise AuthenticationError("Invalid email or password")
+
+        user = await self._users.get_by_email(normalized)
         if user is None or not user.is_active:
             self._passwords.verify(password, _DUMMY_PASSWORD_HASH)
             raise AuthenticationError("Invalid email or password")
@@ -210,6 +229,7 @@ class MfaService:
         totp_verifier: TotpVerifier,
         tokens: TokenIssuer,
         refresh_ttl_days: int,
+        rate_limiter: RateLimitGate,
     ) -> None:
         self._users = users
         self._memberships = memberships
@@ -221,6 +241,7 @@ class MfaService:
         self._totp_verifier = totp_verifier
         self._tokens = tokens
         self._refresh_ttl_days = refresh_ttl_days
+        self._rate_limiter = rate_limiter
 
     async def start_enrollment(self, user_id: uuid.UUID, email: str) -> EnrollmentResult:
         await self._totp_secrets.delete_for_user(user_id)
@@ -270,6 +291,15 @@ class MfaService:
             user_id = self._tokens.verify_challenge_token(challenge_token)
         except TokenValidationError as exc:
             raise MfaVerificationError("Invalid or expired challenge") from exc
+
+        allowed = await self._rate_limiter.check(
+            f"rl:mfa:{user_id}",
+            capacity=MFA_VERIFY_CAPACITY,
+            window_seconds=MFA_VERIFY_WINDOW_SECONDS,
+            fail_closed=True,
+        )
+        if not allowed:
+            raise MfaVerificationError("Invalid code")
 
         user = await self._users.get(user_id)
         if user is None or not user.is_active or not user.mfa_enabled:

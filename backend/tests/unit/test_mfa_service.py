@@ -7,6 +7,7 @@ import pyotp
 import pytest
 from tests.unit.test_identity_service import (
     FakeMembershipRepository,
+    FakeRateLimitGate,
     FakeRefreshTokenRepository,
     FakeSessionRepository,
     FakeTokenIssuer,
@@ -127,6 +128,7 @@ def build_mfa_service(store: InMemoryStore | None = None) -> tuple[MfaService, I
         totp_verifier=verifier,
         tokens=tokens,
         refresh_ttl_days=30,
+        rate_limiter=FakeRateLimitGate(),
     )
     return service, store, verifier.generate_seed()
 

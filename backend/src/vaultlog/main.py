@@ -3,17 +3,24 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+import redis.asyncio as redis
 import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from vaultlog.infrastructure.database.engine import build_engine, build_session_factory
+from vaultlog.infrastructure.security.rate_limit import RedisRateLimiter
 from vaultlog.presentation.api.v1.audit import router as audit_router
 from vaultlog.presentation.api.v1.auth import router as auth_router
 from vaultlog.presentation.api.v1.health import router as health_router
 from vaultlog.presentation.api.v1.secrets import router as secrets_router
 from vaultlog.presentation.api.v1.vaults import router as vaults_router
 from vaultlog.presentation.exception_handlers import register_exception_handlers
+from vaultlog.presentation.middleware import (
+    OriginCheckMiddleware,
+    RequestContextMiddleware,
+    SecurityHeadersMiddleware,
+)
 from vaultlog.shared.config import get_settings
 from vaultlog.shared.logging import configure_logging
 
@@ -25,6 +32,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     configure_logging(settings.log_level)
 
     logger = structlog.get_logger()
+
+    redis_client = redis.from_url(settings.redis_url, decode_responses=False)
+    app.state.redis_client = redis_client
+    app.state.rate_limiter = RedisRateLimiter(redis_client)
 
     app_engine = build_engine(settings.database_url)
     identity_engine = build_engine(settings.migration_database_url)
@@ -39,6 +50,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     yield
 
+    await redis_client.aclose()
     await identity_engine.dispose()
     await app_engine.dispose()
     logger.info("application.stopping", service=settings.service_name)
@@ -67,6 +79,9 @@ def create_app() -> FastAPI:
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type", "X-Request-ID", "X-Step-Up-Token"],
     )
+    app.add_middleware(OriginCheckMiddleware, settings=settings)
+    app.add_middleware(SecurityHeadersMiddleware)
+    app.add_middleware(RequestContextMiddleware)
 
     register_exception_handlers(app)
     app.include_router(health_router, prefix="/api/v1")

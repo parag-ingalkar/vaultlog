@@ -7,7 +7,13 @@ from typing import TYPE_CHECKING
 from vaultlog.application.ports.identity_unit_of_work import IdentityUnitOfWork
 from vaultlog.domain.identity.exceptions import AuthenticationError
 from vaultlog.domain.identity.models import EnrollmentResult, LoginResult, TokenPair
-from vaultlog.domain.identity.ports import PasswordHasher, SeedEncryptor, TokenIssuer, TotpVerifier
+from vaultlog.domain.identity.ports import (
+    PasswordHasher,
+    RateLimitGate,
+    SeedEncryptor,
+    TokenIssuer,
+    TotpVerifier,
+)
 from vaultlog.domain.identity.services import IdentityService, MfaService
 from vaultlog.domain.secrets.exceptions import TenantKeyProvisionError
 
@@ -20,6 +26,7 @@ def _build_identity_service(
     passwords: PasswordHasher,
     tokens: TokenIssuer,
     refresh_ttl_days: int,
+    rate_limiter: RateLimitGate,
 ) -> IdentityService:
     return IdentityService(
         users=uow.users,
@@ -30,6 +37,7 @@ def _build_identity_service(
         passwords=passwords,
         tokens=tokens,
         refresh_ttl_days=refresh_ttl_days,
+        rate_limiter=rate_limiter,
     )
 
 
@@ -39,6 +47,7 @@ def _build_mfa_service(
     totp_verifier: TotpVerifier,
     tokens: TokenIssuer,
     refresh_ttl_days: int,
+    rate_limiter: RateLimitGate,
 ) -> MfaService:
     return MfaService(
         users=uow.users,
@@ -51,6 +60,7 @@ def _build_mfa_service(
         totp_verifier=totp_verifier,
         tokens=tokens,
         refresh_ttl_days=refresh_ttl_days,
+        rate_limiter=rate_limiter,
     )
 
 
@@ -61,12 +71,14 @@ class RegisterUser:
         passwords: PasswordHasher,
         tokens: TokenIssuer,
         refresh_ttl_days: int,
+        rate_limiter: RateLimitGate,
         provision_tenant_key: ProvisionTenantKey | None = None,
     ) -> None:
         self._uow_factory = uow_factory
         self._passwords = passwords
         self._tokens = tokens
         self._refresh_ttl_days = refresh_ttl_days
+        self._rate_limiter = rate_limiter
         self._provision_tenant_key = provision_tenant_key
 
     async def execute(
@@ -81,6 +93,7 @@ class RegisterUser:
                 self._passwords,
                 self._tokens,
                 self._refresh_ttl_days,
+                self._rate_limiter,
             )
             user_id, tenant_id = await service.register(email, password, organization_name)
             await uow.commit()
@@ -106,11 +119,13 @@ class LoginUser:
         passwords: PasswordHasher,
         tokens: TokenIssuer,
         refresh_ttl_days: int,
+        rate_limiter: RateLimitGate,
     ) -> None:
         self._uow_factory = uow_factory
         self._passwords = passwords
         self._tokens = tokens
         self._refresh_ttl_days = refresh_ttl_days
+        self._rate_limiter = rate_limiter
 
     async def execute(
         self,
@@ -124,6 +139,7 @@ class LoginUser:
                 self._passwords,
                 self._tokens,
                 self._refresh_ttl_days,
+                self._rate_limiter,
             )
             result = await service.login(email, password, user_agent)
             await uow.commit()
@@ -137,11 +153,13 @@ class RefreshTokens:
         passwords: PasswordHasher,
         tokens: TokenIssuer,
         refresh_ttl_days: int,
+        rate_limiter: RateLimitGate,
     ) -> None:
         self._uow_factory = uow_factory
         self._passwords = passwords
         self._tokens = tokens
         self._refresh_ttl_days = refresh_ttl_days
+        self._rate_limiter = rate_limiter
 
     async def execute(self, raw_refresh_token: str) -> TokenPair:
         auth_error: AuthenticationError | None = None
@@ -151,6 +169,7 @@ class RefreshTokens:
                 self._passwords,
                 self._tokens,
                 self._refresh_ttl_days,
+                self._rate_limiter,
             )
             try:
                 pair = await service.refresh(raw_refresh_token)
@@ -171,11 +190,13 @@ class LogoutSession:
         passwords: PasswordHasher,
         tokens: TokenIssuer,
         refresh_ttl_days: int,
+        rate_limiter: RateLimitGate,
     ) -> None:
         self._uow_factory = uow_factory
         self._passwords = passwords
         self._tokens = tokens
         self._refresh_ttl_days = refresh_ttl_days
+        self._rate_limiter = rate_limiter
 
     async def execute(self, raw_refresh_token: str) -> None:
         async with self._uow_factory() as uow:
@@ -184,6 +205,7 @@ class LogoutSession:
                 self._passwords,
                 self._tokens,
                 self._refresh_ttl_days,
+                self._rate_limiter,
             )
             await service.logout(raw_refresh_token)
             await uow.commit()
@@ -197,12 +219,14 @@ class StartTotpEnrollment:
         totp_verifier: TotpVerifier,
         tokens: TokenIssuer,
         refresh_ttl_days: int,
+        rate_limiter: RateLimitGate,
     ) -> None:
         self._uow_factory = uow_factory
         self._seed_encryptor = seed_encryptor
         self._totp_verifier = totp_verifier
         self._tokens = tokens
         self._refresh_ttl_days = refresh_ttl_days
+        self._rate_limiter = rate_limiter
 
     async def execute(self, user_id: uuid.UUID, email: str) -> EnrollmentResult:
         async with self._uow_factory() as uow:
@@ -212,6 +236,7 @@ class StartTotpEnrollment:
                 self._totp_verifier,
                 self._tokens,
                 self._refresh_ttl_days,
+                self._rate_limiter,
             )
             result = await service.start_enrollment(user_id, email)
             await uow.commit()
@@ -226,12 +251,14 @@ class ConfirmTotpEnrollment:
         totp_verifier: TotpVerifier,
         tokens: TokenIssuer,
         refresh_ttl_days: int,
+        rate_limiter: RateLimitGate,
     ) -> None:
         self._uow_factory = uow_factory
         self._seed_encryptor = seed_encryptor
         self._totp_verifier = totp_verifier
         self._tokens = tokens
         self._refresh_ttl_days = refresh_ttl_days
+        self._rate_limiter = rate_limiter
 
     async def execute(self, user_id: uuid.UUID, code: str) -> list[str]:
         async with self._uow_factory() as uow:
@@ -241,6 +268,7 @@ class ConfirmTotpEnrollment:
                 self._totp_verifier,
                 self._tokens,
                 self._refresh_ttl_days,
+                self._rate_limiter,
             )
             codes = await service.confirm_enrollment(user_id, code)
             await uow.commit()
@@ -255,12 +283,14 @@ class CompleteMfaLogin:
         totp_verifier: TotpVerifier,
         tokens: TokenIssuer,
         refresh_ttl_days: int,
+        rate_limiter: RateLimitGate,
     ) -> None:
         self._uow_factory = uow_factory
         self._seed_encryptor = seed_encryptor
         self._totp_verifier = totp_verifier
         self._tokens = tokens
         self._refresh_ttl_days = refresh_ttl_days
+        self._rate_limiter = rate_limiter
 
     async def execute(
         self,
@@ -275,6 +305,7 @@ class CompleteMfaLogin:
                 self._totp_verifier,
                 self._tokens,
                 self._refresh_ttl_days,
+                self._rate_limiter,
             )
             pair = await service.complete_login(challenge_token, code, user_agent)
             await uow.commit()
@@ -289,12 +320,14 @@ class StepUpVerify:
         totp_verifier: TotpVerifier,
         tokens: TokenIssuer,
         refresh_ttl_days: int,
+        rate_limiter: RateLimitGate,
     ) -> None:
         self._uow_factory = uow_factory
         self._seed_encryptor = seed_encryptor
         self._totp_verifier = totp_verifier
         self._tokens = tokens
         self._refresh_ttl_days = refresh_ttl_days
+        self._rate_limiter = rate_limiter
 
     async def execute(
         self,
@@ -310,6 +343,7 @@ class StepUpVerify:
                 self._totp_verifier,
                 self._tokens,
                 self._refresh_ttl_days,
+                self._rate_limiter,
             )
             token = await service.step_up(user_id, session_id, code, purpose)
             await uow.commit()
@@ -324,12 +358,14 @@ class DisableMfa:
         totp_verifier: TotpVerifier,
         tokens: TokenIssuer,
         refresh_ttl_days: int,
+        rate_limiter: RateLimitGate,
     ) -> None:
         self._uow_factory = uow_factory
         self._seed_encryptor = seed_encryptor
         self._totp_verifier = totp_verifier
         self._tokens = tokens
         self._refresh_ttl_days = refresh_ttl_days
+        self._rate_limiter = rate_limiter
 
     async def execute(self, user_id: uuid.UUID) -> None:
         async with self._uow_factory() as uow:
@@ -339,6 +375,7 @@ class DisableMfa:
                 self._totp_verifier,
                 self._tokens,
                 self._refresh_ttl_days,
+                self._rate_limiter,
             )
             await service.disable_mfa(user_id)
             await uow.commit()
