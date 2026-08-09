@@ -10,6 +10,7 @@ from tests.integration.fixtures.constants import TENANT_B, VAULT_A_ID
 from tests.integration.fixtures.vaults import (
     ADMIN_USER,
     MEMBER_MEMBERSHIP,
+    MEMBER_USER,
     ORG_ID,
     VAULT_ID,
     VIEWER_USER,
@@ -18,6 +19,8 @@ from tests.integration.fixtures.vaults import (
 from vaultlog.application.vaults.use_cases import (
     CreateVault,
     DeleteVault,
+    GetVault,
+    ListGrants,
     ListVaults,
     ManageGrant,
     build_policy_service,
@@ -43,6 +46,16 @@ def _manage_grant(app_engine, tenant_id: uuid.UUID) -> ManageGrant:
 def _create_vault(app_engine, tenant_id: uuid.UUID) -> CreateVault:
     factory = _factory(app_engine, tenant_id)
     return CreateVault(factory, record_access_denial(app_engine, tenant_id))
+
+
+def _list_grants(app_engine, tenant_id: uuid.UUID) -> ListGrants:
+    factory = _factory(app_engine, tenant_id)
+    return ListGrants(factory, record_access_denial(app_engine, tenant_id))
+
+
+def _get_vault(app_engine, tenant_id: uuid.UUID) -> GetVault:
+    factory = _factory(app_engine, tenant_id)
+    return GetVault(factory)
 
 
 def _delete_vault(app_engine, tenant_id: uuid.UUID) -> DeleteVault:
@@ -85,6 +98,13 @@ async def test_grant_upsert_is_idempotent(app_engine, rbac_tenant, owner_engine)
     await manage.grant(actor, VAULT_ID, MEMBER_MEMBERSHIP, VaultPermission.READ)
     await manage.grant(actor, VAULT_ID, MEMBER_MEMBERSHIP, VaultPermission.WRITE)
 
+    list_grants = _list_grants(app_engine, ORG_ID)
+    grants = await list_grants.execute(actor, VAULT_ID)
+    assert len(grants) == 1
+    assert grants[0].membership_id == MEMBER_MEMBERSHIP
+    assert grants[0].email == "member@rbac.test"
+    assert grants[0].permission is VaultPermission.WRITE
+
     async with owner_engine.connect() as conn:
         result = await conn.execute(
             text(
@@ -98,6 +118,24 @@ async def test_grant_upsert_is_idempotent(app_engine, rbac_tenant, owner_engine)
         rows = result.all()
         assert len(rows) == 1
         assert rows[0][0] == "write"
+
+
+async def test_member_can_get_shared_vault(app_engine, rbac_tenant):
+    get_vault = _get_vault(app_engine, ORG_ID)
+    view = await get_vault.execute(MEMBER_USER, ORG_ID, VAULT_ID)
+    assert view.id == VAULT_ID
+
+
+async def test_cross_tenant_get_vault_is_not_found(app_engine, rbac_tenant):
+    get_vault = _get_vault(app_engine, TENANT_B)
+    with pytest.raises(NotFoundError):
+        await get_vault.execute(MEMBER_USER, TENANT_B, VAULT_ID)
+
+
+async def test_member_cannot_list_grants(app_engine, rbac_tenant):
+    list_grants = _list_grants(app_engine, ORG_ID)
+    with pytest.raises(ForbiddenError):
+        await list_grants.execute(make_actor(MEMBER_USER, ORG_ID), VAULT_ID)
 
 
 async def test_viewer_cannot_write_after_read_grant_revoked(app_engine, rbac_tenant):

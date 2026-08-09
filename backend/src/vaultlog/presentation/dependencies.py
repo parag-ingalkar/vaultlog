@@ -16,6 +16,7 @@ from vaultlog.application.identity.use_cases import (
     CompleteMfaLogin,
     ConfirmTotpEnrollment,
     DisableMfa,
+    GetCurrentUser,
     LoginUser,
     LogoutSession,
     RefreshTokens,
@@ -47,6 +48,8 @@ from vaultlog.application.secrets.use_cases import (
 from vaultlog.application.vaults.use_cases import (
     CreateVault,
     DeleteVault,
+    GetVault,
+    ListGrants,
     ListVaults,
     ManageGrant,
     UpdateVault,
@@ -482,6 +485,13 @@ def get_tenant_uow_factory(
     return factory
 
 
+def get_get_current_user(
+    identity_uow_factory: Callable[[], IdentityUnitOfWork] = Depends(get_identity_uow_factory),
+    tenant_uow_factory: Callable[[], TenantUnitOfWork] = Depends(get_tenant_uow_factory),
+) -> GetCurrentUser:
+    return GetCurrentUser(identity_uow_factory, tenant_uow_factory)
+
+
 def get_record_access_denial(
     uow_factory: Callable[[], TenantUnitOfWork] = Depends(get_tenant_uow_factory),
 ) -> RecordAccessDenial:
@@ -499,6 +509,12 @@ def get_list_vaults(
     uow_factory: Callable[[], TenantUnitOfWork] = Depends(get_tenant_uow_factory),
 ) -> ListVaults:
     return ListVaults(uow_factory)
+
+
+def get_get_vault(
+    uow_factory: Callable[[], TenantUnitOfWork] = Depends(get_tenant_uow_factory),
+) -> GetVault:
+    return GetVault(uow_factory)
 
 
 def get_update_vault(
@@ -520,6 +536,13 @@ def get_manage_grant(
     record_denial: RecordAccessDenial = Depends(get_record_access_denial),
 ) -> ManageGrant:
     return ManageGrant(uow_factory, record_denial)
+
+
+def get_list_grants(
+    uow_factory: Callable[[], TenantUnitOfWork] = Depends(get_tenant_uow_factory),
+    record_denial: RecordAccessDenial = Depends(get_record_access_denial),
+) -> ListGrants:
+    return ListGrants(uow_factory, record_denial)
 
 
 def get_create_secret(

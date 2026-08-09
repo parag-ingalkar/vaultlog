@@ -10,6 +10,7 @@ from vaultlog.domain.access.exceptions import ForbiddenError
 from vaultlog.domain.access.models import VaultPermission
 from vaultlog.domain.access.services import PolicyService
 from vaultlog.domain.audit.models import ActorContext
+from vaultlog.domain.vaults.models import GrantView
 from vaultlog.domain.vaults.services import VaultService, VaultView
 
 
@@ -73,6 +74,21 @@ class ListVaults:
         async with self._uow_factory() as uow:
             service = build_vault_service(uow)
             return await service.list(user_id, tenant_id)
+
+
+class GetVault:
+    def __init__(self, uow_factory: Callable[[], TenantUnitOfWork]) -> None:
+        self._uow_factory = uow_factory
+
+    async def execute(
+        self,
+        user_id: uuid.UUID,
+        tenant_id: uuid.UUID,
+        vault_id: uuid.UUID,
+    ) -> VaultView:
+        async with self._uow_factory() as uow:
+            service = build_vault_service(uow)
+            return await service.get(user_id, tenant_id, vault_id)
 
 
 class UpdateVault:
@@ -222,6 +238,29 @@ class ManageGrant:
                     metadata={"membership_id": str(target_membership_id)},
                 )
                 await uow.commit()
+        except ForbiddenError as exc:
+            await record_denial_if_needed(self._record_denial, actor, exc)
+            raise
+
+
+class ListGrants:
+    def __init__(
+        self,
+        uow_factory: Callable[[], TenantUnitOfWork],
+        record_denial: RecordAccessDenial,
+    ) -> None:
+        self._uow_factory = uow_factory
+        self._record_denial = record_denial
+
+    async def execute(
+        self,
+        actor: ActorContext,
+        vault_id: uuid.UUID,
+    ) -> list[GrantView]:
+        try:
+            async with self._uow_factory() as uow:
+                service = build_vault_service(uow)
+                return await service.list_grants(actor.user_id, actor.tenant_id, vault_id)
         except ForbiddenError as exc:
             await record_denial_if_needed(self._record_denial, actor, exc)
             raise

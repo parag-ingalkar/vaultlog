@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import builtins
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
@@ -8,6 +9,7 @@ from vaultlog.domain.access.exceptions import ForbiddenError, NotFoundError
 from vaultlog.domain.access.models import Action, VaultPermission
 from vaultlog.domain.access.ports import MembershipAccessPort
 from vaultlog.domain.access.services import PolicyService
+from vaultlog.domain.vaults.models import GrantView
 from vaultlog.domain.vaults.ports import VaultGrantRepository, VaultRepository
 
 
@@ -83,6 +85,23 @@ class VaultService:
             for vault in rows
         ]
 
+    async def get(
+        self,
+        user_id: uuid.UUID,
+        tenant_id: uuid.UUID,
+        vault_id: uuid.UUID,
+    ) -> VaultView:
+        await self._policy.require_vault(user_id, tenant_id, vault_id, Action.SECRET_READ_META)
+        vault = await self._vaults.get_active(vault_id, tenant_id)
+        if vault is None:
+            raise NotFoundError("Vault not found")
+        return VaultView(
+            id=vault.id,
+            name=vault.name,
+            description=vault.description,
+            created_at=vault.created_at,
+        )
+
     async def update(
         self,
         user_id: uuid.UUID,
@@ -154,3 +173,12 @@ class VaultService:
         deleted = await self._grants.delete(vault_id, target_membership_id, tenant_id)
         if not deleted:
             raise NotFoundError("Grant not found")
+
+    async def list_grants(
+        self,
+        actor_user_id: uuid.UUID,
+        tenant_id: uuid.UUID,
+        vault_id: uuid.UUID,
+    ) -> builtins.list[GrantView]:
+        await self._policy.require_vault(actor_user_id, tenant_id, vault_id, Action.GRANT_MANAGE)
+        return await self._grants.list_for_vault(vault_id, tenant_id)

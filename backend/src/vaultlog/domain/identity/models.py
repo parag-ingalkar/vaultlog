@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal
 
+from vaultlog.domain.access.models import OrgRole
+
 
 @dataclass(frozen=True)
 class User:
@@ -79,3 +81,26 @@ class LoginResult:
 @dataclass(frozen=True)
 class EnrollmentResult:
     provisioning_uri: str
+
+
+@dataclass(frozen=True)
+class UserCapabilities:
+    can_create_vaults: bool
+    can_manage_members: bool
+    can_manage_invitations: bool
+    can_read_audit: bool
+
+
+@dataclass(frozen=True)
+class CurrentUserView:
+    user_id: uuid.UUID
+    email: str
+    mfa_enabled: bool
+    mfa_enrollment_required: bool
+    membership_id: uuid.UUID
+    role: OrgRole
+    organization_id: uuid.UUID
+    organization_name: str
+    session_id: uuid.UUID
+    amr: tuple[str, ...]
+    capabilities: UserCapabilities

@@ -198,3 +198,12 @@ class PolicyService:
         if role in (OrgRole.OWNER, OrgRole.ADMIN, OrgRole.MEMBER, OrgRole.VIEWER):
             return None
         return await self._grants.list_vault_ids_for_user(user_id, tenant_id)
+
+
+def org_capabilities_for_role(role: OrgRole) -> dict[str, bool]:
+    return {
+        "can_create_vaults": _org_allows(role, Action.VAULT_CREATE),
+        "can_manage_members": _org_allows(role, Action.MEMBER_REMOVE),
+        "can_manage_invitations": _org_allows(role, Action.MEMBER_INVITE),
+        "can_read_audit": _org_allows(role, Action.AUDIT_READ),
+    }

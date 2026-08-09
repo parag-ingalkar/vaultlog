@@ -32,8 +32,12 @@ class FakeMembershipAccess:
 
 
 class FakeVaultAccess:
+    def __init__(self, vaults: FakeVaultRepository) -> None:
+        self._vaults = vaults
+
     async def exists_active(self, vault_id: uuid.UUID, tenant_id: uuid.UUID) -> bool:
-        return vault_id == VAULT_ID and tenant_id == TENANT_ID
+        vault = await self._vaults.get_active(vault_id, tenant_id)
+        return vault is not None
 
 
 class FakeGrantAccess:
@@ -145,14 +149,22 @@ class FakeGrantRepository:
         ]
         return len(self.grants) < before
 
+    async def list_for_vault(
+        self,
+        vault_id: uuid.UUID,
+        tenant_id: uuid.UUID,
+    ) -> list:
+        return []
+
 
 def _service(role: OrgRole = OrgRole.MEMBER) -> tuple[VaultService, FakeGrantRepository]:
     memberships = FakeMembershipAccess(role)
+    vaults = FakeVaultRepository()
     grants_access = FakeGrantAccess()
     grants = FakeGrantRepository()
-    policy = PolicyService(memberships, FakeVaultAccess(), grants_access)
+    policy = PolicyService(memberships, FakeVaultAccess(vaults), grants_access)
     service = VaultService(
-        vaults=FakeVaultRepository(),
+        vaults=vaults,
         grants=grants,
         memberships=memberships,
         policy=policy,
@@ -198,3 +210,36 @@ async def test_grant_rejects_foreign_membership():
             uuid.uuid4(),
             VaultPermission.READ,
         )
+
+
+async def test_get_returns_vault_when_accessible():
+    service, _ = _service(OrgRole.ADMIN)
+    created = await service.create(USER_ID, TENANT_ID, "Prod", "desc")
+    view = await service.get(USER_ID, TENANT_ID, created.id)
+    assert view.id == created.id
+    assert view.name == "Prod"
+
+
+async def test_get_raises_not_found_for_missing_vault():
+    service, _ = _service(OrgRole.ADMIN)
+    with pytest.raises(NotFoundError):
+        await service.get(USER_ID, TENANT_ID, uuid.uuid4())
+
+
+async def test_list_grants_requires_grant_manage():
+    service, _ = _service(OrgRole.MEMBER)
+    now = datetime.now(UTC)
+    vault_id = uuid.uuid4()
+    service._vaults.vaults.append(
+        Vault(
+            id=vault_id,
+            tenant_id=TENANT_ID,
+            name="Prod",
+            description=None,
+            created_by_user_id=USER_ID,
+            created_at=now,
+            updated_at=now,
+        )
+    )
+    with pytest.raises(ForbiddenError):
+        await service.list_grants(USER_ID, TENANT_ID, vault_id)

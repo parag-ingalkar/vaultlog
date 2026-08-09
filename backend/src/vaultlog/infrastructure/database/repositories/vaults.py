@@ -14,9 +14,9 @@ from vaultlog.domain.access.ports import (
     VaultAccessPort,
     VaultGrantAccessPort,
 )
-from vaultlog.domain.vaults.models import Vault
+from vaultlog.domain.vaults.models import GrantView, Vault
 from vaultlog.domain.vaults.ports import VaultGrantRepository, VaultRepository
-from vaultlog.infrastructure.database.identity_models import MembershipModel
+from vaultlog.infrastructure.database.identity_models import MembershipModel, UserModel
 from vaultlog.infrastructure.database.models import VaultGrantModel, VaultModel
 
 
@@ -259,3 +259,37 @@ class SqlAlchemyVaultGrantRepository(VaultGrantRepository):
             ),
         )
         return (result.rowcount or 0) > 0
+
+    async def list_for_vault(
+        self,
+        vault_id: uuid.UUID,
+        tenant_id: uuid.UUID,
+    ) -> list[GrantView]:
+        rows = await self._session.execute(
+            select(
+                VaultGrantModel.membership_id,
+                MembershipModel.user_id,
+                UserModel.email,
+                MembershipModel.role,
+                VaultGrantModel.permission,
+                VaultGrantModel.created_at,
+            )
+            .join(MembershipModel, MembershipModel.id == VaultGrantModel.membership_id)
+            .join(UserModel, UserModel.id == MembershipModel.user_id)
+            .where(
+                VaultGrantModel.vault_id == vault_id,
+                VaultGrantModel.tenant_id == tenant_id,
+            )
+            .order_by(UserModel.email.asc())
+        )
+        return [
+            GrantView(
+                membership_id=row.membership_id,
+                user_id=row.user_id,
+                email=row.email,
+                org_role=OrgRole(row.role),
+                permission=VaultPermission(row.permission),
+                granted_at=row.created_at,
+            )
+            for row in rows
+        ]

@@ -8,17 +8,21 @@ from pydantic import BaseModel, Field
 from vaultlog.application.vaults.use_cases import (
     CreateVault,
     DeleteVault,
+    GetVault,
+    ListGrants,
     ListVaults,
     ManageGrant,
     UpdateVault,
 )
-from vaultlog.domain.access.models import VaultPermission
+from vaultlog.domain.access.models import OrgRole, VaultPermission
 from vaultlog.presentation.dependencies import (
     Principal,
     StepUpPurpose,
     current_principal,
     get_create_vault,
     get_delete_vault,
+    get_get_vault,
+    get_list_grants,
     get_list_vaults,
     get_manage_grant,
     get_update_vault,
@@ -48,6 +52,15 @@ class VaultResponse(BaseModel):
 class GrantRequest(BaseModel):
     membership_id: uuid.UUID
     permission: VaultPermission
+
+
+class GrantResponse(BaseModel):
+    membership_id: uuid.UUID
+    user_id: uuid.UUID
+    email: str
+    org_role: OrgRole
+    permission: VaultPermission
+    granted_at: str
 
 
 @router.post("", response_model=VaultResponse, status_code=status.HTTP_201_CREATED)
@@ -84,6 +97,21 @@ async def list_vaults(
         )
         for view in views
     ]
+
+
+@router.get("/{vault_id}", response_model=VaultResponse)
+async def get_vault(
+    vault_id: uuid.UUID,
+    principal: Principal = Depends(current_principal),
+    use_case: GetVault = Depends(get_get_vault),
+) -> VaultResponse:
+    view = await use_case.execute(principal.user_id, principal.tenant_id, vault_id)
+    return VaultResponse(
+        id=view.id,
+        name=view.name,
+        description=view.description,
+        created_at=view.created_at.isoformat(),
+    )
 
 
 @router.patch("/{vault_id}", response_model=VaultResponse)
@@ -126,6 +154,34 @@ async def delete_vault(
         vault_id,
         step_up_proven=True,
     )
+
+
+@router.get(
+    "/{vault_id}/grants",
+    response_model=list[GrantResponse],
+    summary="List explicit vault grants",
+    description=(
+        "Returns explicit vault_grant rows only. Members and viewers with org-wide "
+        "access may not appear here."
+    ),
+)
+async def list_grants(
+    vault_id: uuid.UUID,
+    principal: Principal = Depends(current_principal),
+    use_case: ListGrants = Depends(get_list_grants),
+) -> list[GrantResponse]:
+    grants = await use_case.execute(principal.to_actor(), vault_id)
+    return [
+        GrantResponse(
+            membership_id=grant.membership_id,
+            user_id=grant.user_id,
+            email=grant.email,
+            org_role=grant.org_role,
+            permission=grant.permission,
+            granted_at=grant.granted_at.isoformat(),
+        )
+        for grant in grants
+    ]
 
 
 @router.post("/{vault_id}/grants", status_code=status.HTTP_204_NO_CONTENT)

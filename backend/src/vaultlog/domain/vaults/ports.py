@@ -4,7 +4,7 @@ import uuid
 from typing import Protocol
 
 from vaultlog.domain.access.models import VaultPermission
-from vaultlog.domain.vaults.models import Vault
+from vaultlog.domain.vaults.models import GrantView, Vault
 
 
 class VaultRepository(Protocol):
@@ -56,3 +56,9 @@ class VaultGrantRepository(Protocol):
         membership_id: uuid.UUID,
         tenant_id: uuid.UUID,
     ) -> bool: ...
+
+    async def list_for_vault(
+        self,
+        vault_id: uuid.UUID,
+        tenant_id: uuid.UUID,
+    ) -> list[GrantView]: ...

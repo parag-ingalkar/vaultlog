@@ -7,13 +7,16 @@ from vaultlog.application.identity.use_cases import (
     CompleteMfaLogin,
     ConfirmTotpEnrollment,
     DisableMfa,
+    GetCurrentUser,
     LoginUser,
     LogoutSession,
     RefreshTokens,
     RegisterUser,
+    SessionPrincipal,
     StartTotpEnrollment,
     StepUpVerify,
 )
+from vaultlog.domain.access.models import OrgRole
 from vaultlog.domain.identity.exceptions import AuthenticationError
 from vaultlog.domain.identity.models import TokenPair
 from vaultlog.domain.identity.rate_limits import (
@@ -31,10 +34,12 @@ from vaultlog.domain.identity.rate_limits import (
 from vaultlog.presentation.dependencies import (
     Principal,
     StepUpPurpose,
+    current_principal,
     current_user,
     get_complete_mfa_login,
     get_confirm_totp_enrollment,
     get_disable_mfa,
+    get_get_current_user,
     get_login_user,
     get_logout_session,
     get_refresh_tokens,
@@ -102,6 +107,31 @@ class StepUpResponse(BaseModel):
     expires_in: int
 
 
+class OrganizationSummary(BaseModel):
+    id: str
+    name: str
+
+
+class UserCapabilitiesResponse(BaseModel):
+    can_create_vaults: bool
+    can_manage_members: bool
+    can_manage_invitations: bool
+    can_read_audit: bool
+
+
+class MeResponse(BaseModel):
+    user_id: str
+    email: EmailStr
+    mfa_enabled: bool
+    mfa_enrollment_required: bool
+    membership_id: str
+    role: OrgRole
+    organization: OrganizationSummary
+    session_id: str
+    amr: list[str]
+    capabilities: UserCapabilitiesResponse
+
+
 def _set_refresh_cookie(
     response: Response,
     pair: TokenPair,
@@ -150,6 +180,41 @@ async def register(
 ) -> RegisterResponse:
     user_id = await use_case.execute(body.email, body.password, body.organization_name)
     return RegisterResponse(user_id=str(user_id))
+
+
+@router.get("/me", response_model=MeResponse)
+async def get_me(
+    principal: Principal = Depends(current_principal),
+    use_case: GetCurrentUser = Depends(get_get_current_user),
+) -> MeResponse:
+    view = await use_case.execute(
+        SessionPrincipal(
+            user_id=principal.user_id,
+            tenant_id=principal.tenant_id,
+            session_id=principal.session_id,
+            amr=principal.amr,
+        )
+    )
+    return MeResponse(
+        user_id=str(view.user_id),
+        email=view.email,
+        mfa_enabled=view.mfa_enabled,
+        mfa_enrollment_required=view.mfa_enrollment_required,
+        membership_id=str(view.membership_id),
+        role=view.role,
+        organization=OrganizationSummary(
+            id=str(view.organization_id),
+            name=view.organization_name,
+        ),
+        session_id=str(view.session_id),
+        amr=list(view.amr),
+        capabilities=UserCapabilitiesResponse(
+            can_create_vaults=view.capabilities.can_create_vaults,
+            can_manage_members=view.capabilities.can_manage_members,
+            can_manage_invitations=view.capabilities.can_manage_invitations,
+            can_read_audit=view.capabilities.can_read_audit,
+        ),
+    )
 
 
 @router.post(

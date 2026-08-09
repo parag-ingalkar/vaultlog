@@ -2,11 +2,21 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from vaultlog.application.ports.identity_unit_of_work import IdentityUnitOfWork
+from vaultlog.application.ports.tenant_unit_of_work import TenantUnitOfWork
+from vaultlog.domain.access.models import OrgRole
+from vaultlog.domain.access.services import org_capabilities_for_role
 from vaultlog.domain.identity.exceptions import AuthenticationError
-from vaultlog.domain.identity.models import EnrollmentResult, LoginResult, TokenPair
+from vaultlog.domain.identity.models import (
+    CurrentUserView,
+    EnrollmentResult,
+    LoginResult,
+    TokenPair,
+    UserCapabilities,
+)
 from vaultlog.domain.identity.ports import (
     PasswordHasher,
     RateLimitGate,
@@ -379,3 +389,55 @@ class DisableMfa:
             )
             await service.disable_mfa(user_id)
             await uow.commit()
+
+
+@dataclass(frozen=True)
+class SessionPrincipal:
+    user_id: uuid.UUID
+    tenant_id: uuid.UUID
+    session_id: uuid.UUID
+    amr: tuple[str, ...]
+
+
+class GetCurrentUser:
+    def __init__(
+        self,
+        identity_uow_factory: Callable[[], IdentityUnitOfWork],
+        tenant_uow_factory: Callable[[], TenantUnitOfWork],
+    ) -> None:
+        self._identity_uow_factory = identity_uow_factory
+        self._tenant_uow_factory = tenant_uow_factory
+
+    async def execute(self, principal: SessionPrincipal) -> CurrentUserView:
+        async with self._identity_uow_factory() as identity_uow:
+            user = await identity_uow.users.get(principal.user_id)
+            if user is None or not user.is_active:
+                raise AuthenticationError("Not authenticated")
+
+        async with self._tenant_uow_factory() as tenant_uow:
+            role = await tenant_uow.membership_access.get_role(
+                principal.user_id,
+                principal.tenant_id,
+            )
+            membership_id = await tenant_uow.membership_access.get_membership_id(
+                principal.user_id,
+                principal.tenant_id,
+            )
+            org_name = await tenant_uow.organizations.get_name(principal.tenant_id)
+            if role is None or membership_id is None or org_name is None:
+                raise AuthenticationError("Not authenticated")
+
+        caps = org_capabilities_for_role(role)
+        return CurrentUserView(
+            user_id=principal.user_id,
+            email=user.email,
+            mfa_enabled=user.mfa_enabled,
+            mfa_enrollment_required=role is OrgRole.OWNER and not user.mfa_enabled,
+            membership_id=membership_id,
+            role=role,
+            organization_id=principal.tenant_id,
+            organization_name=org_name,
+            session_id=principal.session_id,
+            amr=principal.amr,
+            capabilities=UserCapabilities(**caps),
+        )
