@@ -88,7 +88,7 @@ class IdentityService:
         email: str,
         password: str,
         organization_name: str,
-    ) -> uuid.UUID:
+    ) -> tuple[uuid.UUID, uuid.UUID]:
         validate_password_strength(password)
         normalized = email.strip().lower()
 
@@ -101,7 +101,7 @@ class IdentityService:
         )
         org_id = await self._organizations.add(organization_name)
         await self._memberships.add(tenant_id=org_id, user_id=user.id, role="owner")
-        return user.id
+        return user.id, org_id
 
     async def login(
         self,

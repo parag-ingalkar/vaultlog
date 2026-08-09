@@ -256,7 +256,7 @@ def build_service(store: InMemoryStore | None = None) -> tuple[IdentityService, 
 @pytest.mark.asyncio
 async def test_register_creates_user_org_and_membership() -> None:
     service, store = build_service()
-    user_id = await service.register("Ada@Example.com", "correct horse battery", "Acme")
+    user_id, _tenant_id = await service.register("Ada@Example.com", "correct horse battery", "Acme")
     user = store.users[user_id]
     assert user.email == "ada@example.com"
     assert store.memberships[user_id] in store.organizations

@@ -9,6 +9,11 @@ from vaultlog.domain.access.ports import (
     VaultAccessPort,
     VaultGrantAccessPort,
 )
+from vaultlog.domain.secrets.ports import (
+    SecretRepository,
+    SecretVersionRepository,
+    TenantKeyRepository,
+)
 from vaultlog.domain.vaults.ports import VaultGrantRepository, VaultRepository
 
 
@@ -18,6 +23,9 @@ class TenantUnitOfWork(UnitOfWork, Protocol):
     membership_access: MembershipAccessPort
     vault_access: VaultAccessPort
     grant_access: VaultGrantAccessPort
+    secrets: SecretRepository
+    secret_versions: SecretVersionRepository
+    tenant_keys: TenantKeyRepository
 
     async def __aenter__(self) -> Self: ...
 

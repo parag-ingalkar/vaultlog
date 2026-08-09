@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import uuid
+
 import pytest
 import pytest_asyncio
 from sqlalchemy import text
@@ -18,13 +20,21 @@ from vaultlog.application.identity.use_cases import (
     StartTotpEnrollment,
     StepUpVerify,
 )
+from vaultlog.application.ports.tenant_context import TenantContext
+from vaultlog.application.secrets.use_cases import ProvisionTenantKey
+from vaultlog.infrastructure.database.engine import build_session_factory
 from vaultlog.infrastructure.database.identity_unit_of_work import (
     SqlAlchemyIdentityUnitOfWork,
 )
+from vaultlog.infrastructure.database.unit_of_work import SqlAlchemyUnitOfWork
 from vaultlog.infrastructure.security.mfa import PyotpTotpVerifier
 from vaultlog.infrastructure.security.passwords import Argon2Hasher
 from vaultlog.infrastructure.security.seed_encryption import AesGcmSeedEncryptor
 from vaultlog.infrastructure.security.tokens import TokenService
+from vaultlog.infrastructure.security.vault_crypto import (
+    AesGcmSecretEncryptor,
+    LocalKEKProvider,
+)
 from vaultlog.shared.config import get_settings
 
 
@@ -94,13 +104,34 @@ def _mfa_kwargs(
 
 
 @pytest.fixture()
-def register_user(identity_uow_factory, passwords, tokens) -> RegisterUser:
+def tenant_uow_factory_for_tenant(app_engine):
+    factory = build_session_factory(app_engine)
+
+    def build(tenant_id: uuid.UUID) -> SqlAlchemyUnitOfWork:
+        return SqlAlchemyUnitOfWork(factory, TenantContext(tenant_id=tenant_id))
+
+    return build
+
+
+@pytest.fixture()
+def register_user(
+    identity_uow_factory,
+    tenant_uow_factory_for_tenant,
+    passwords,
+    tokens,
+) -> RegisterUser:
     settings = get_settings()
+    provision = ProvisionTenantKey(
+        tenant_uow_factory_for_tenant,
+        LocalKEKProvider(settings),
+        AesGcmSecretEncryptor(),
+    )
     return RegisterUser(
         identity_uow_factory,
         passwords,
         tokens,
         settings.refresh_token_ttl_days,
+        provision_tenant_key=provision,
     )
 
 

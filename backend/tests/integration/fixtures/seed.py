@@ -6,9 +6,10 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from tests.integration.fixtures.constants import SEED_USER_ID, TENANT_A, TENANT_B, VAULT_A_ID
+from tests.integration.fixtures.tenant_keys import provision_tenant_encryption_key
 
 
-async def seed_baseline_data(engine: AsyncEngine) -> None:
+async def seed_baseline_data(engine: AsyncEngine, app_engine: AsyncEngine) -> None:
     async with engine.begin() as conn:
         await conn.execute(
             text("SELECT set_config('app.current_tenant', :a, true)"),
@@ -42,3 +43,6 @@ async def seed_baseline_data(engine: AsyncEngine) -> None:
             ),
             {"id": VAULT_A_ID, "t": TENANT_A, "user_id": SEED_USER_ID},
         )
+
+    await provision_tenant_encryption_key(app_engine, TENANT_A)
+    await provision_tenant_encryption_key(app_engine, TENANT_B)

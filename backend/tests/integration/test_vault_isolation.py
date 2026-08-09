@@ -29,8 +29,8 @@ from vaultlog.infrastructure.database.unit_of_work import SqlAlchemyUnitOfWork
 
 
 @pytest.fixture()
-async def rbac_tenant(owner_engine):
-    await seed_rbac_tenant(owner_engine)
+async def rbac_tenant(owner_engine, app_engine):
+    await seed_rbac_tenant(owner_engine, app_engine)
 
 
 def _factory(app_engine, tenant_id: uuid.UUID):
@@ -127,7 +127,7 @@ async def test_member_without_grant_cannot_write_after_revoke(app_engine, rbac_t
 
 
 async def test_member_can_create_vault_and_list_it(app_engine, owner_engine):
-    await seed_rbac_tenant(owner_engine)
+    await seed_rbac_tenant(owner_engine, app_engine)
     create = CreateVault(_factory(app_engine, ORG_ID))
     view = await create.execute(MEMBER_USER, ORG_ID, "Member Vault", "mine")
     list_vaults = ListVaults(_factory(app_engine, ORG_ID))

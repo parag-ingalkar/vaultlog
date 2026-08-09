@@ -24,8 +24,8 @@ from vaultlog.infrastructure.database.unit_of_work import SqlAlchemyUnitOfWork
 
 
 @pytest.fixture()
-async def rbac_tenant(owner_engine):
-    await seed_rbac_tenant(owner_engine)
+async def rbac_tenant(owner_engine, app_engine):
+    await seed_rbac_tenant(owner_engine, app_engine)
 
 
 def _uow(app_engine, tenant_id: uuid.UUID) -> SqlAlchemyUnitOfWork:

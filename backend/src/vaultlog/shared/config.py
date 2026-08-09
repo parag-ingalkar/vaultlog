@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     refresh_cookie_secure: bool = True
 
     mfa_kek_b64: str
+    master_key_b64: str
     step_up_token_ttl_seconds: int = 300
     challenge_token_ttl_seconds: int = 300
 

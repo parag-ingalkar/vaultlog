@@ -13,6 +13,12 @@ from vaultlog.domain.identity.exceptions import (
     StepUpRequiredError,
     TokenValidationError,
 )
+from vaultlog.domain.secrets.exceptions import (
+    CryptoError,
+    NoActiveKeyError,
+    SecretConflictError,
+    TenantKeyProvisionError,
+)
 
 
 def register_exception_handlers(app: FastAPI) -> None:
@@ -107,4 +113,44 @@ def register_exception_handlers(app: FastAPI) -> None:
         return JSONResponse(
             status_code=status.HTTP_404_NOT_FOUND,
             content={"detail": "Not found"},
+        )
+
+    @app.exception_handler(SecretConflictError)
+    async def secret_conflict_error(
+        request: Request,
+        exc: SecretConflictError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content={"detail": str(exc) or "Conflict"},
+        )
+
+    @app.exception_handler(NoActiveKeyError)
+    async def no_active_key_error(
+        request: Request,
+        exc: NoActiveKeyError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"detail": "Encryption key unavailable"},
+        )
+
+    @app.exception_handler(CryptoError)
+    async def crypto_error(
+        request: Request,
+        exc: CryptoError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"detail": "Cryptographic operation failed"},
+        )
+
+    @app.exception_handler(TenantKeyProvisionError)
+    async def tenant_key_provision_error(
+        request: Request,
+        exc: TenantKeyProvisionError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"detail": str(exc) or "Tenant encryption setup failed"},
         )

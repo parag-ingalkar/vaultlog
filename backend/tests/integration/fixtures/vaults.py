@@ -8,6 +8,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from tests.integration.fixtures.constants import TENANT_A
+from tests.integration.fixtures.tenant_keys import provision_tenant_encryption_key
 from vaultlog.infrastructure.security.passwords import Argon2Hasher
 
 ORG_ID = TENANT_A
@@ -26,7 +27,7 @@ VIEWER_MEMBERSHIP = uuid.UUID("aaaaaaaa-4444-4444-4444-444444444444")
 PASSWORD_HASH = Argon2Hasher().hash("correct horse battery")
 
 
-async def seed_rbac_tenant(owner_engine: AsyncEngine) -> None:
+async def seed_rbac_tenant(owner_engine: AsyncEngine, app_engine: AsyncEngine) -> None:
     async with owner_engine.begin() as conn:
         await conn.execute(
             text(
@@ -83,3 +84,5 @@ async def seed_rbac_tenant(owner_engine: AsyncEngine) -> None:
             ),
             {"id": VAULT_ID, "t": ORG_ID, "owner": OWNER_USER},
         )
+
+    await provision_tenant_encryption_key(app_engine, ORG_ID)

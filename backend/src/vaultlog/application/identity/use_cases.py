@@ -2,12 +2,17 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 from vaultlog.application.ports.identity_unit_of_work import IdentityUnitOfWork
 from vaultlog.domain.identity.exceptions import AuthenticationError
 from vaultlog.domain.identity.models import EnrollmentResult, LoginResult, TokenPair
 from vaultlog.domain.identity.ports import PasswordHasher, SeedEncryptor, TokenIssuer, TotpVerifier
 from vaultlog.domain.identity.services import IdentityService, MfaService
+from vaultlog.domain.secrets.exceptions import TenantKeyProvisionError
+
+if TYPE_CHECKING:
+    from vaultlog.application.secrets.use_cases import ProvisionTenantKey
 
 
 def _build_identity_service(
@@ -56,11 +61,13 @@ class RegisterUser:
         passwords: PasswordHasher,
         tokens: TokenIssuer,
         refresh_ttl_days: int,
+        provision_tenant_key: ProvisionTenantKey | None = None,
     ) -> None:
         self._uow_factory = uow_factory
         self._passwords = passwords
         self._tokens = tokens
         self._refresh_ttl_days = refresh_ttl_days
+        self._provision_tenant_key = provision_tenant_key
 
     async def execute(
         self,
@@ -75,9 +82,21 @@ class RegisterUser:
                 self._tokens,
                 self._refresh_ttl_days,
             )
-            user_id = await service.register(email, password, organization_name)
+            user_id, tenant_id = await service.register(email, password, organization_name)
             await uow.commit()
-            return user_id
+
+        if self._provision_tenant_key is not None:
+            for attempt in range(2):
+                try:
+                    await self._provision_tenant_key.execute(tenant_id)
+                    break
+                except Exception:
+                    if attempt == 1:
+                        raise TenantKeyProvisionError(
+                            "Tenant encryption key could not be provisioned"
+                        ) from None
+
+        return user_id
 
 
 class LoginUser:

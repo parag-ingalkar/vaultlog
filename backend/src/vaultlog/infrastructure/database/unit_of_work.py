@@ -12,7 +12,17 @@ from vaultlog.domain.access.ports import (
     VaultAccessPort,
     VaultGrantAccessPort,
 )
+from vaultlog.domain.secrets.ports import (
+    SecretRepository,
+    SecretVersionRepository,
+    TenantKeyRepository,
+)
 from vaultlog.domain.vaults.ports import VaultGrantRepository, VaultRepository
+from vaultlog.infrastructure.database.repositories.secrets import (
+    SqlAlchemySecretRepository,
+    SqlAlchemySecretVersionRepository,
+    SqlAlchemyTenantKeyRepository,
+)
 from vaultlog.infrastructure.database.repositories.vaults import (
     SqlAlchemyMembershipAccessRepository,
     SqlAlchemyVaultAccessRepository,
@@ -34,6 +44,9 @@ class SqlAlchemyUnitOfWork:
     membership_access: MembershipAccessPort
     vault_access: VaultAccessPort
     grant_access: VaultGrantAccessPort
+    secrets: SecretRepository
+    secret_versions: SecretVersionRepository
+    tenant_keys: TenantKeyRepository
 
     def __init__(
         self,
@@ -55,6 +68,9 @@ class SqlAlchemyUnitOfWork:
         self.membership_access = SqlAlchemyMembershipAccessRepository(self.session)
         self.vault_access = SqlAlchemyVaultAccessRepository(self.session)
         self.grant_access = SqlAlchemyVaultGrantAccessRepository(self.session)
+        self.secrets = SqlAlchemySecretRepository(self.session)
+        self.secret_versions = SqlAlchemySecretVersionRepository(self.session)
+        self.tenant_keys = SqlAlchemyTenantKeyRepository(self.session)
         return self
 
     async def __aexit__(

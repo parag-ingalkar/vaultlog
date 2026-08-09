@@ -24,6 +24,14 @@ from vaultlog.application.identity.use_cases import (
 )
 from vaultlog.application.ports.identity_unit_of_work import IdentityUnitOfWork
 from vaultlog.application.ports.tenant_context import TenantContext
+from vaultlog.application.secrets.use_cases import (
+    CreateSecret,
+    DeleteSecret,
+    ListSecrets,
+    ProvisionTenantKey,
+    RevealSecret,
+    RotateSecret,
+)
 from vaultlog.application.vaults.use_cases import (
     CreateVault,
     DeleteVault,
@@ -40,6 +48,10 @@ from vaultlog.infrastructure.security.mfa import PyotpTotpVerifier
 from vaultlog.infrastructure.security.passwords import Argon2Hasher
 from vaultlog.infrastructure.security.seed_encryption import AesGcmSeedEncryptor
 from vaultlog.infrastructure.security.tokens import TokenService
+from vaultlog.infrastructure.security.vault_crypto import (
+    AesGcmSecretEncryptor,
+    LocalKEKProvider,
+)
 from vaultlog.shared.config import Settings, get_settings
 
 _bearer = HTTPBearer(auto_error=False)
@@ -98,6 +110,16 @@ def get_totp_verifier() -> PyotpTotpVerifier:
     return PyotpTotpVerifier()
 
 
+@lru_cache
+def get_secret_encryptor() -> AesGcmSecretEncryptor:
+    return AesGcmSecretEncryptor()
+
+
+@lru_cache
+def get_kek_provider() -> LocalKEKProvider:
+    return LocalKEKProvider(get_settings())
+
+
 def get_identity_uow_factory(
     session_factory: async_sessionmaker[AsyncSession] = Depends(get_identity_session_factory),
 ) -> Callable[[], IdentityUnitOfWork]:
@@ -107,17 +129,33 @@ def get_identity_uow_factory(
     return factory
 
 
+def get_tenant_uow_factory_for_tenant(
+    session_factory: async_sessionmaker[AsyncSession] = Depends(get_app_session_factory),
+) -> Callable[[UUID], SqlAlchemyUnitOfWork]:
+    def factory(tenant_id: UUID) -> SqlAlchemyUnitOfWork:
+        return SqlAlchemyUnitOfWork(session_factory, TenantContext(tenant_id=tenant_id))
+
+    return factory
+
+
 def get_register_user(
     uow_factory: Callable[[], IdentityUnitOfWork] = Depends(get_identity_uow_factory),
+    tenant_uow_factory: Callable[[UUID], SqlAlchemyUnitOfWork] = Depends(
+        get_tenant_uow_factory_for_tenant
+    ),
     passwords: Argon2Hasher = Depends(get_password_hasher),
     tokens: TokenService = Depends(get_token_service),
+    kek: LocalKEKProvider = Depends(get_kek_provider),
+    encryptor: AesGcmSecretEncryptor = Depends(get_secret_encryptor),
     settings: Settings = Depends(get_settings),
 ) -> RegisterUser:
+    provision = ProvisionTenantKey(tenant_uow_factory, kek, encryptor)
     return RegisterUser(
         uow_factory,
         passwords,
         tokens,
         settings.refresh_token_ttl_days,
+        provision_tenant_key=provision,
     )
 
 
@@ -343,3 +381,43 @@ def get_manage_grant(
     uow_factory: Callable[[], SqlAlchemyUnitOfWork] = Depends(get_tenant_uow_factory),
 ) -> ManageGrant:
     return ManageGrant(uow_factory)
+
+
+def get_create_secret(
+    uow_factory: Callable[[], SqlAlchemyUnitOfWork] = Depends(get_tenant_uow_factory),
+    kek: LocalKEKProvider = Depends(get_kek_provider),
+    encryptor: AesGcmSecretEncryptor = Depends(get_secret_encryptor),
+) -> CreateSecret:
+    return CreateSecret(uow_factory, kek, encryptor)
+
+
+def get_list_secrets(
+    uow_factory: Callable[[], SqlAlchemyUnitOfWork] = Depends(get_tenant_uow_factory),
+    kek: LocalKEKProvider = Depends(get_kek_provider),
+    encryptor: AesGcmSecretEncryptor = Depends(get_secret_encryptor),
+) -> ListSecrets:
+    return ListSecrets(uow_factory, kek, encryptor)
+
+
+def get_reveal_secret(
+    uow_factory: Callable[[], SqlAlchemyUnitOfWork] = Depends(get_tenant_uow_factory),
+    kek: LocalKEKProvider = Depends(get_kek_provider),
+    encryptor: AesGcmSecretEncryptor = Depends(get_secret_encryptor),
+) -> RevealSecret:
+    return RevealSecret(uow_factory, kek, encryptor)
+
+
+def get_rotate_secret(
+    uow_factory: Callable[[], SqlAlchemyUnitOfWork] = Depends(get_tenant_uow_factory),
+    kek: LocalKEKProvider = Depends(get_kek_provider),
+    encryptor: AesGcmSecretEncryptor = Depends(get_secret_encryptor),
+) -> RotateSecret:
+    return RotateSecret(uow_factory, kek, encryptor)
+
+
+def get_delete_secret(
+    uow_factory: Callable[[], SqlAlchemyUnitOfWork] = Depends(get_tenant_uow_factory),
+    kek: LocalKEKProvider = Depends(get_kek_provider),
+    encryptor: AesGcmSecretEncryptor = Depends(get_secret_encryptor),
+) -> DeleteSecret:
+    return DeleteSecret(uow_factory, kek, encryptor)
