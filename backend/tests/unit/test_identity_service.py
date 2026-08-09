@@ -124,15 +124,31 @@ class FakeMembershipRepository:
     async def add(self, tenant_id: uuid.UUID, user_id: uuid.UUID, role: str) -> None:
         self._store.memberships[user_id] = tenant_id
 
-    async def get_default_tenant_id(self, user_id: uuid.UUID) -> uuid.UUID | None:
+    async def get_tenant_id(self, user_id: uuid.UUID) -> uuid.UUID | None:
         return self._store.memberships.get(user_id)
+
+    async def get_role(self, user_id: uuid.UUID) -> str | None:
+        return "owner" if user_id in self._store.memberships else None
+
+    async def has_membership(self, user_id: uuid.UUID) -> bool:
+        return user_id in self._store.memberships
+
+    async def has_membership_for_email(self, email: str) -> bool:
+        user = self._store.users_by_email.get(email)
+        return user is not None and user.id in self._store.memberships
 
 
 class FakeSessionRepository:
     def __init__(self, store: InMemoryStore) -> None:
         self._store = store
 
-    async def add(self, user_id: uuid.UUID, user_agent: str | None) -> AuthSession:
+    async def add(
+        self,
+        user_id: uuid.UUID,
+        user_agent: str | None,
+        *,
+        amr: tuple[str, ...] = ("pwd",),
+    ) -> AuthSession:
         session = AuthSession(
             id=uuid.uuid4(),
             user_id=user_id,
@@ -140,6 +156,7 @@ class FakeSessionRepository:
             revocation_reason=None,
             user_agent=user_agent,
             last_used_at=datetime.now(UTC),
+            amr=amr,
         )
         self._store.sessions[session.id] = session
         return session
@@ -162,6 +179,7 @@ class FakeSessionRepository:
             revocation_reason=reason,
             user_agent=session.user_agent,
             last_used_at=session.last_used_at,
+            amr=session.amr,
         )
 
     async def touch(self, session_id: uuid.UUID, *, last_used_at: datetime) -> None:
@@ -173,6 +191,7 @@ class FakeSessionRepository:
             revocation_reason=session.revocation_reason,
             user_agent=session.user_agent,
             last_used_at=last_used_at,
+            amr=session.amr,
         )
 
 
@@ -396,6 +415,29 @@ async def test_expired_refresh_revokes_session() -> None:
         await service.refresh(pair.refresh_token)
     session = store.sessions[token.session_id]
     assert session.revocation_reason == "refresh_expired"
+
+
+@pytest.mark.asyncio
+async def test_refresh_preserves_amr_from_session() -> None:
+    service, store, _ = build_service()
+    await service.register("ada@example.com", "correct horse battery", "Acme")
+    login_result = await service.login("ada@example.com", "correct horse battery", "pytest")
+    pair1 = login_result.pair
+    assert pair1 is not None
+
+    session = next(iter(store.sessions.values()))
+    store.sessions[session.id] = AuthSession(
+        id=session.id,
+        user_id=session.user_id,
+        revoked_at=session.revoked_at,
+        revocation_reason=session.revocation_reason,
+        user_agent=session.user_agent,
+        last_used_at=session.last_used_at,
+        amr=("pwd", "totp"),
+    )
+
+    pair2 = await service.refresh(pair1.refresh_token)
+    assert pair2.access_token.endswith("pwd,totp")
 
 
 @pytest.mark.asyncio

@@ -13,6 +13,11 @@ from vaultlog.domain.access.ports import (
     VaultGrantAccessPort,
 )
 from vaultlog.domain.audit.ports import AuditLedgerPort
+from vaultlog.domain.organizations.ports import (
+    InvitationRepository,
+    MemberRepository,
+    OrganizationReader,
+)
 from vaultlog.domain.secrets.ports import (
     SecretRepository,
     SecretVersionRepository,
@@ -20,6 +25,11 @@ from vaultlog.domain.secrets.ports import (
 )
 from vaultlog.domain.vaults.ports import VaultGrantRepository, VaultRepository
 from vaultlog.infrastructure.database.repositories.audit import SqlAlchemyAuditRepository
+from vaultlog.infrastructure.database.repositories.organizations import (
+    SqlAlchemyInvitationRepository,
+    SqlAlchemyMemberRepository,
+    SqlAlchemyOrganizationReader,
+)
 from vaultlog.infrastructure.database.repositories.secrets import (
     SqlAlchemySecretRepository,
     SqlAlchemySecretVersionRepository,
@@ -50,6 +60,9 @@ class SqlAlchemyUnitOfWork:
     secret_versions: SecretVersionRepository
     tenant_keys: TenantKeyRepository
     audit: AuditLedgerPort
+    invitations: InvitationRepository
+    members: MemberRepository
+    organizations: OrganizationReader
 
     def __init__(
         self,
@@ -75,6 +88,9 @@ class SqlAlchemyUnitOfWork:
         self.secret_versions = SqlAlchemySecretVersionRepository(self.session)
         self.tenant_keys = SqlAlchemyTenantKeyRepository(self.session)
         self.audit = SqlAlchemyAuditRepository(self.session)
+        self.invitations = SqlAlchemyInvitationRepository(self.session)
+        self.members = SqlAlchemyMemberRepository(self.session)
+        self.organizations = SqlAlchemyOrganizationReader(self.session)
         return self
 
     async def __aexit__(

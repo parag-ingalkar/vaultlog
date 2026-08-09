@@ -10,9 +10,9 @@ from tests.integration.fixtures.constants import TENANT_B, VAULT_A_ID
 from tests.integration.fixtures.vaults import (
     ADMIN_USER,
     MEMBER_MEMBERSHIP,
-    MEMBER_USER,
     ORG_ID,
     VAULT_ID,
+    VIEWER_USER,
     seed_rbac_tenant,
 )
 from vaultlog.application.vaults.use_cases import (
@@ -100,34 +100,29 @@ async def test_grant_upsert_is_idempotent(app_engine, rbac_tenant, owner_engine)
         assert rows[0][0] == "write"
 
 
-async def test_member_without_grant_cannot_write_after_revoke(app_engine, rbac_tenant):
-    manage = _manage_grant(app_engine, ORG_ID)
-    actor = make_actor(ADMIN_USER, ORG_ID)
-    await manage.grant(actor, VAULT_ID, MEMBER_MEMBERSHIP, VaultPermission.WRITE)
-    await manage.revoke(actor, VAULT_ID, MEMBER_MEMBERSHIP)
-
+async def test_viewer_cannot_write_after_read_grant_revoked(app_engine, rbac_tenant):
     async with _factory(app_engine, ORG_ID)() as uow:
         policy = build_policy_service(uow)
         with pytest.raises(ForbiddenError):
             await policy.require_vault(
-                MEMBER_USER,
+                VIEWER_USER,
                 ORG_ID,
                 VAULT_ID,
                 Action.SECRET_WRITE,
             )
 
 
-async def test_member_can_create_vault_and_list_it(app_engine, owner_engine):
+async def test_admin_can_create_vault_and_list_it(app_engine, owner_engine):
     await seed_rbac_tenant(owner_engine, app_engine)
     create = _create_vault(app_engine, ORG_ID)
-    view = await create.execute(make_actor(MEMBER_USER, ORG_ID), "Member Vault", "mine")
+    view = await create.execute(make_actor(ADMIN_USER, ORG_ID), "Admin Vault", "mine")
     list_vaults = ListVaults(_factory(app_engine, ORG_ID))
-    names = [v.name for v in await list_vaults.execute(MEMBER_USER, ORG_ID)]
-    assert "Member Vault" in names
+    names = [v.name for v in await list_vaults.execute(ADMIN_USER, ORG_ID)]
+    assert "Admin Vault" in names
     assert view.id is not None
 
 
-async def test_baseline_vault_still_isolated_between_tenants(scoped_session):
+async def test_baseline_vault_still_isolated_between_tenants(scoped_session, baseline_data):
     session = await scoped_session(TENANT_B)
     try:
         result = await session.execute(

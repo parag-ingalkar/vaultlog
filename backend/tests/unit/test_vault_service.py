@@ -161,7 +161,7 @@ def _service(role: OrgRole = OrgRole.MEMBER) -> tuple[VaultService, FakeGrantRep
 
 
 async def test_create_assigns_creator_admin_grant():
-    service, grants = _service()
+    service, grants = _service(OrgRole.ADMIN)
     view = await service.create(USER_ID, TENANT_ID, "Prod", "desc")
     assert view.name == "Prod"
     assert len(grants.grants) == 1

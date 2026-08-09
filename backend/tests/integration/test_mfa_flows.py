@@ -194,6 +194,53 @@ async def test_complete_mfa_login_with_totp(
     assert "pwd" in claims.amr
 
 
+async def test_mfa_login_refresh_preserves_amr(
+    register_user,
+    login_user,
+    start_totp_enrollment,
+    confirm_totp_enrollment,
+    complete_mfa_login,
+    refresh_tokens,
+    identity_uow_factory,
+) -> None:
+    email = _unique_email("amrrefresh")
+    await _enroll_and_confirm_mfa(
+        register_user,
+        login_user,
+        start_totp_enrollment,
+        confirm_totp_enrollment,
+        identity_uow_factory,
+        email,
+    )
+
+    login_result = await login_user.execute(email, PASSWORD, "pytest")
+    assert login_result.challenge_token is not None
+
+    async with identity_uow_factory() as uow:
+        user = await uow.session.scalar(select(UserModel).where(UserModel.email == email))
+        assert user is not None
+        secret_row = await uow.session.scalar(
+            select(TotpSecretModel).where(TotpSecretModel.user_id == user.id)
+        )
+        assert secret_row is not None
+        seed = AesGcmSeedEncryptor(settings).decrypt(
+            user.id, secret_row.seed_nonce, secret_row.encrypted_seed
+        )
+
+    pair = await complete_mfa_login.execute(
+        login_result.challenge_token,
+        pyotp.TOTP(seed).now(),
+        "pytest",
+    )
+    claims = TokenService(settings).verify_access_token(pair.access_token)
+    assert "totp" in claims.amr
+
+    refreshed = await refresh_tokens.execute(pair.refresh_token)
+    refreshed_claims = TokenService(settings).verify_access_token(refreshed.access_token)
+    assert "totp" in refreshed_claims.amr
+    assert "pwd" in refreshed_claims.amr
+
+
 async def test_complete_mfa_login_wrong_code_fails(
     register_user,
     login_user,

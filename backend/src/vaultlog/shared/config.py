@@ -47,6 +47,13 @@ class Settings(BaseSettings):
     step_up_token_ttl_seconds: int = 300
     challenge_token_ttl_seconds: int = 300
 
+    smtp_host: str = "localhost"
+    smtp_port: int = 1025
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = "vaultlog@localhost"
+    invite_base_url: str = "http://localhost:5173/accept-invite"
+
     def build_database_url(
         self,
         user: str,

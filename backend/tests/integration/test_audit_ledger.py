@@ -15,6 +15,7 @@ from tests.integration.fixtures.vaults import (
     ORG_ID,
     OWNER_USER,
     VAULT_ID,
+    VIEWER_USER,
     seed_rbac_tenant,
 )
 from vaultlog.application.audit.use_cases import ListAuditEvents, VerifyTenantChain
@@ -163,13 +164,11 @@ async def test_metadata_guard_raises(app_engine, rbac_tenant) -> None:
 
 
 async def test_denial_is_recorded_in_separate_transaction(app_engine, rbac_tenant) -> None:
-    create, reveal, _ = _secret_use_cases(app_engine, ORG_ID)
-    admin_actor = make_actor(ADMIN_USER, ORG_ID)
-    meta = await create.execute(admin_actor, VAULT_ID, "deny", "v1", None)
+    create, _reveal, _ = _secret_use_cases(app_engine, ORG_ID)
 
-    member_actor = make_actor(MEMBER_USER, ORG_ID)
+    viewer_actor = make_actor(VIEWER_USER, ORG_ID)
     with pytest.raises(ForbiddenError):
-        await reveal.execute(member_actor, VAULT_ID, meta.id, None)
+        await create.execute(viewer_actor, VAULT_ID, "deny", "v1", None)
 
     async with tenant_uow_factory(app_engine, ORG_ID)() as uow:
         events = await uow.audit.list_all_ordered(ORG_ID)

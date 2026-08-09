@@ -115,19 +115,17 @@ MATRIX: list[tuple[OrgRole, VaultPermission | None, Action, bool]] = [
     (OrgRole.OWNER, None, Action.AUDIT_READ, True),
     (OrgRole.ADMIN, None, Action.AUDIT_READ, True),
     (OrgRole.MEMBER, None, Action.AUDIT_READ, False),
-    (OrgRole.MEMBER, None, Action.SECRET_READ_META, False),
-    (OrgRole.MEMBER, VaultPermission.READ, Action.SECRET_READ_META, True),
-    (OrgRole.MEMBER, VaultPermission.READ, Action.SECRET_WRITE, False),
-    (OrgRole.MEMBER, VaultPermission.WRITE, Action.SECRET_WRITE, True),
-    (OrgRole.MEMBER, VaultPermission.WRITE, Action.SECRET_DELETE, False),
-    (OrgRole.MEMBER, VaultPermission.ADMIN, Action.SECRET_DELETE, True),
+    (OrgRole.MEMBER, None, Action.VAULT_CREATE, False),
+    (OrgRole.MEMBER, None, Action.SECRET_READ_META, True),
+    (OrgRole.MEMBER, None, Action.SECRET_WRITE, True),
+    (OrgRole.MEMBER, None, Action.SECRET_DELETE, True),
     (OrgRole.MEMBER, None, Action.GRANT_MANAGE, False),
     (OrgRole.MEMBER, None, Action.VAULT_DELETE, False),
-    (OrgRole.VIEWER, VaultPermission.READ, Action.SECRET_READ_META, True),
-    (OrgRole.VIEWER, VaultPermission.WRITE, Action.SECRET_WRITE, False),
+    (OrgRole.VIEWER, None, Action.SECRET_READ_META, True),
+    (OrgRole.VIEWER, None, Action.SECRET_REVEAL, True),
+    (OrgRole.VIEWER, None, Action.SECRET_WRITE, False),
     (OrgRole.VIEWER, None, Action.VAULT_CREATE, False),
-    (OrgRole.VIEWER, VaultPermission.READ, Action.VAULT_LIST, True),
-    (OrgRole.MEMBER, None, Action.VAULT_CREATE, True),
+    (OrgRole.VIEWER, None, Action.VAULT_LIST, True),
     (OrgRole.VIEWER, None, Action.MEMBER_INVITE, False),
     (OrgRole.ADMIN, None, Action.MEMBER_INVITE, True),
 ]
@@ -139,7 +137,7 @@ async def test_policy_matrix(role, grant, action, expected):
 
 
 async def test_missing_vault_returns_not_found():
-    policy = _policy(OrgRole.MEMBER, VaultPermission.READ, vault_exists=False)
+    policy = _policy(OrgRole.MEMBER, None, vault_exists=False)
     with pytest.raises(NotFoundError):
         await policy.require_vault(USER_ID, TENANT_ID, VAULT_ID, Action.SECRET_READ_META)
 
@@ -149,10 +147,11 @@ async def test_owner_lists_all_vaults_unrestricted():
     assert await policy.list_accessible_vault_ids(USER_ID, TENANT_ID) is None
 
 
-async def test_member_lists_grant_scoped_vaults():
-    policy = PolicyService(
-        memberships=FakeMembershipAccess(OrgRole.MEMBER),
-        vaults=FakeVaultAccess(),
-        grants=FakeGrantAccess(vault_ids=[VAULT_ID]),
-    )
-    assert await policy.list_accessible_vault_ids(USER_ID, TENANT_ID) == [VAULT_ID]
+async def test_member_lists_all_vaults_unrestricted():
+    policy = _policy(OrgRole.MEMBER, None)
+    assert await policy.list_accessible_vault_ids(USER_ID, TENANT_ID) is None
+
+
+async def test_viewer_lists_all_vaults_unrestricted():
+    policy = _policy(OrgRole.VIEWER, None)
+    assert await policy.list_accessible_vault_ids(USER_ID, TENANT_ID) is None

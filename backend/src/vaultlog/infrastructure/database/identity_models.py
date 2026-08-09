@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, LargeBinary, String, func
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from vaultlog.infrastructure.database.base import Base
@@ -63,6 +63,11 @@ class AuthSessionModel(Base):
     )
     last_used_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    amr: Mapped[list[str]] = mapped_column(
+        ARRAY(String),
+        nullable=False,
+        server_default="{'pwd'}",
     )
 
 

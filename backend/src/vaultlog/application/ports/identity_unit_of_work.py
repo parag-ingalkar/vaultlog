@@ -13,6 +13,7 @@ from vaultlog.domain.identity.ports import (
     TotpSecretRepository,
     UserRepository,
 )
+from vaultlog.domain.organizations.ports import InvitationTokenLookup
 
 
 class IdentityUnitOfWork(UnitOfWork, Protocol):
@@ -23,6 +24,7 @@ class IdentityUnitOfWork(UnitOfWork, Protocol):
     organizations: OrganizationRepository
     totp_secrets: TotpSecretRepository
     recovery_codes: RecoveryCodeRepository
+    invitation_lookup: InvitationTokenLookup
 
     async def __aenter__(self) -> Self: ...
 

@@ -29,6 +29,10 @@ class MfaVerificationError(DomainError):
     """Raised when MFA verification fails during login challenge."""
 
 
+class MfaEnrollmentRequiredError(DomainError):
+    """Raised when an owner must complete MFA enrollment before using tenant APIs."""
+
+
 class StepUpRequiredError(DomainError):
     """Raised when a sensitive operation lacks valid step-up proof."""
 

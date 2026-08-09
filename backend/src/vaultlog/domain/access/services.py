@@ -18,6 +18,7 @@ from vaultlog.domain.access.ports import (
 _SENSITIVE_VAULT_ACTIONS = frozenset(
     {
         Action.SECRET_REVEAL,
+        Action.SECRET_WRITE,
         Action.SECRET_DELETE,
         Action.VAULT_DELETE,
         Action.GRANT_MANAGE,
@@ -51,19 +52,30 @@ def _org_allows(role: OrgRole, action: Action) -> bool:
         case Action.VAULT_LIST | Action.SECRET_READ_META:
             return True
         case Action.VAULT_CREATE:
-            return role in (OrgRole.OWNER, OrgRole.ADMIN, OrgRole.MEMBER)
+            return role in (OrgRole.OWNER, OrgRole.ADMIN)
         case Action.VAULT_UPDATE | Action.VAULT_DELETE | Action.GRANT_MANAGE | Action.MEMBER_INVITE:
             return role in (OrgRole.OWNER, OrgRole.ADMIN)
         case Action.MEMBER_REMOVE:
             return role in (OrgRole.OWNER, OrgRole.ADMIN)
-        case Action.SECRET_WRITE:
-            return role in (OrgRole.OWNER, OrgRole.ADMIN)
-        case Action.SECRET_DELETE:
-            return role in (OrgRole.OWNER, OrgRole.ADMIN)
+        case Action.SECRET_WRITE | Action.SECRET_DELETE:
+            return role in (OrgRole.OWNER, OrgRole.ADMIN, OrgRole.MEMBER)
         case Action.AUDIT_READ:
             return role in (OrgRole.OWNER, OrgRole.ADMIN)
         case _:
             return False
+
+
+def _member_allows(action: Action) -> bool:
+    return action in (
+        Action.SECRET_READ_META,
+        Action.SECRET_REVEAL,
+        Action.SECRET_WRITE,
+        Action.SECRET_DELETE,
+    )
+
+
+def _viewer_allows(action: Action) -> bool:
+    return action in (Action.SECRET_READ_META, Action.SECRET_REVEAL)
 
 
 def _grant_allows(
@@ -143,6 +155,26 @@ class PolicyService:
                 vault_permission=VaultPermission.ADMIN,
             )
 
+        if role is OrgRole.MEMBER:
+            if not _member_allows(action):
+                raise _forbidden_vault_action(action, vault_id)
+            return AccessContext(
+                user_id=user_id,
+                tenant_id=tenant_id,
+                role=role,
+                vault_permission=VaultPermission.WRITE,
+            )
+
+        if role is OrgRole.VIEWER:
+            if not _viewer_allows(action):
+                raise _forbidden_vault_action(action, vault_id)
+            return AccessContext(
+                user_id=user_id,
+                tenant_id=tenant_id,
+                role=role,
+                vault_permission=VaultPermission.READ,
+            )
+
         permission = await self._grants.get_permission(user_id, tenant_id, vault_id)
         if not _grant_allows(permission, action, role=role):
             raise _forbidden_vault_action(action, vault_id)
@@ -163,6 +195,6 @@ class PolicyService:
         role = await self._memberships.get_role(user_id, tenant_id)
         if role is None:
             raise ForbiddenError("Access denied")
-        if role in (OrgRole.OWNER, OrgRole.ADMIN):
+        if role in (OrgRole.OWNER, OrgRole.ADMIN, OrgRole.MEMBER, OrgRole.VIEWER):
             return None
         return await self._grants.list_vault_ids_for_user(user_id, tenant_id)

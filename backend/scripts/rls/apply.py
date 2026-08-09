@@ -29,6 +29,7 @@ TENANT_TABLES = frozenset(
         "tenant_key_version",
         "audit_event",
         "audit_chain_head",
+        "invitation",
     }
 )
 

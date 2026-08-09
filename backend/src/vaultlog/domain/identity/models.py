@@ -23,6 +23,7 @@ class AuthSession:
     revocation_reason: str | None
     user_agent: str | None
     last_used_at: datetime
+    amr: tuple[str, ...] = ("pwd",)
 
 
 @dataclass(frozen=True)

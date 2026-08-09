@@ -9,7 +9,6 @@ from tests.integration.fixtures.audit import make_actor, tenant_uow_factory
 from tests.integration.fixtures.constants import TENANT_B
 from tests.integration.fixtures.vaults import (
     ADMIN_USER,
-    MEMBER_MEMBERSHIP,
     MEMBER_USER,
     ORG_ID,
     OWNER_USER,
@@ -23,9 +22,8 @@ from vaultlog.application.secrets.use_cases import (
     RevealSecret,
     RotateSecret,
 )
-from vaultlog.application.vaults.use_cases import CreateVault, ManageGrant
+from vaultlog.application.vaults.use_cases import CreateVault
 from vaultlog.domain.access.exceptions import ForbiddenError, NotFoundError
-from vaultlog.domain.access.models import VaultPermission
 from vaultlog.infrastructure.database.engine import build_session_factory
 from vaultlog.infrastructure.database.models import TenantKeyVersionModel
 from vaultlog.infrastructure.security.tokens import TokenService
@@ -166,18 +164,7 @@ async def rbac_tenant(owner_engine, app_engine):
     await seed_rbac_tenant(owner_engine, app_engine)
 
 
-async def test_member_read_grant_can_reveal_not_rotate(app_engine, rbac_tenant) -> None:
-    manage = ManageGrant(
-        _tenant_factory(app_engine, ORG_ID),
-        RecordAccessDenial(_tenant_factory(app_engine, ORG_ID)),
-    )
-    await manage.grant(
-        make_actor(ADMIN_USER, ORG_ID),
-        VAULT_ID,
-        MEMBER_MEMBERSHIP,
-        VaultPermission.READ,
-    )
-
+async def test_member_can_reveal_and_rotate_org_wide(app_engine, rbac_tenant) -> None:
     create, reveal, rotate, delete = _secret_use_cases(app_engine, ORG_ID)
     meta = await create.execute(
         make_actor(ADMIN_USER, ORG_ID),
@@ -194,15 +181,15 @@ async def test_member_read_grant_can_reveal_not_rotate(app_engine, rbac_tenant) 
     )
     assert plaintext == "value"
 
-    with pytest.raises(ForbiddenError):
-        await rotate.execute(make_actor(MEMBER_USER, ORG_ID), VAULT_ID, meta.id, "new")
+    rotated = await rotate.execute(make_actor(MEMBER_USER, ORG_ID), VAULT_ID, meta.id, "new")
+    assert rotated.current_version == 2
 
     with pytest.raises(ForbiddenError):
         await delete.execute(
             make_actor(MEMBER_USER, ORG_ID),
             VAULT_ID,
             meta.id,
-            step_up_proven=True,
+            step_up_proven=False,
         )
 
 

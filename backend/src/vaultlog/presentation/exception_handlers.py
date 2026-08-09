@@ -11,12 +11,19 @@ from vaultlog.domain.audit.exceptions import AuditMetadataError, UnknownAuditAct
 from vaultlog.domain.identity.exceptions import (
     AuthenticationError,
     MfaEnrollmentError,
+    MfaEnrollmentRequiredError,
     MfaVerificationError,
     PasswordPolicyError,
     RegistrationConflictError,
     ServiceUnavailableError,
     StepUpRequiredError,
     TokenValidationError,
+)
+from vaultlog.domain.organizations.exceptions import (
+    InvitationError,
+    InvitationNotFoundError,
+    MemberConflictError,
+    MemberNotFoundError,
 )
 from vaultlog.domain.secrets.exceptions import (
     CryptoError,
@@ -156,6 +163,73 @@ def register_exception_handlers(app: FastAPI) -> None:
             content=error_body(
                 "step_up_required",
                 str(exc) or "Step-up authentication required",
+                request_id_from(request),
+            ),
+        )
+
+    @app.exception_handler(MfaEnrollmentRequiredError)
+    async def mfa_enrollment_required_error(
+        request: Request,
+        exc: MfaEnrollmentRequiredError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content=error_body(
+                "mfa_enrollment_required",
+                str(exc) or "MFA enrollment required",
+                request_id_from(request),
+            ),
+        )
+
+    @app.exception_handler(InvitationError)
+    async def invitation_error(request: Request, exc: InvitationError) -> JSONResponse:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content=error_body(
+                "invitation_failed",
+                str(exc) or "Invitation failed",
+                request_id_from(request),
+            ),
+        )
+
+    @app.exception_handler(InvitationNotFoundError)
+    async def invitation_not_found_error(
+        request: Request,
+        exc: InvitationNotFoundError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content=error_body(
+                "invitation_not_found",
+                str(exc) or "Invitation not found",
+                request_id_from(request),
+            ),
+        )
+
+    @app.exception_handler(MemberConflictError)
+    async def member_conflict_error(
+        request: Request,
+        exc: MemberConflictError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content=error_body(
+                "member_conflict",
+                str(exc) or "Member operation failed",
+                request_id_from(request),
+            ),
+        )
+
+    @app.exception_handler(MemberNotFoundError)
+    async def member_not_found_error(
+        request: Request,
+        exc: MemberNotFoundError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content=error_body(
+                "member_not_found",
+                str(exc) or "Member not found",
                 request_id_from(request),
             ),
         )

@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 
 import redis.asyncio as redis
 import structlog
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from vaultlog.infrastructure.database.engine import build_engine, build_session_factory
@@ -13,8 +13,12 @@ from vaultlog.infrastructure.security.rate_limit import RedisRateLimiter
 from vaultlog.presentation.api.v1.audit import router as audit_router
 from vaultlog.presentation.api.v1.auth import router as auth_router
 from vaultlog.presentation.api.v1.health import router as health_router
+from vaultlog.presentation.api.v1.invitations import router as invitations_router
+from vaultlog.presentation.api.v1.members import router as members_router
+from vaultlog.presentation.api.v1.organization import router as organization_router
 from vaultlog.presentation.api.v1.secrets import router as secrets_router
 from vaultlog.presentation.api.v1.vaults import router as vaults_router
+from vaultlog.presentation.dependencies import require_mfa_if_owner
 from vaultlog.presentation.exception_handlers import register_exception_handlers
 from vaultlog.presentation.middleware import (
     OriginCheckMiddleware,
@@ -86,9 +90,24 @@ def create_app() -> FastAPI:
     register_exception_handlers(app)
     app.include_router(health_router, prefix="/api/v1")
     app.include_router(auth_router, prefix="/api/v1")
-    app.include_router(vaults_router, prefix="/api/v1")
-    app.include_router(secrets_router, prefix="/api/v1")
-    app.include_router(audit_router, prefix="/api/v1")
+    app.include_router(
+        vaults_router,
+        prefix="/api/v1",
+        dependencies=[Depends(require_mfa_if_owner)],
+    )
+    app.include_router(
+        secrets_router,
+        prefix="/api/v1",
+        dependencies=[Depends(require_mfa_if_owner)],
+    )
+    app.include_router(
+        audit_router,
+        prefix="/api/v1",
+        dependencies=[Depends(require_mfa_if_owner)],
+    )
+    app.include_router(invitations_router, prefix="/api/v1")
+    app.include_router(members_router, prefix="/api/v1")
+    app.include_router(organization_router, prefix="/api/v1")
 
     return app
 

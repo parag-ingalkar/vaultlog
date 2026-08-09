@@ -14,6 +14,7 @@ from vaultlog.domain.identity.ports import (
     TotpSecretRepository,
     UserRepository,
 )
+from vaultlog.domain.organizations.ports import InvitationTokenLookup
 from vaultlog.infrastructure.database.repositories.identity import (
     SqlAlchemyMembershipRepository,
     SqlAlchemyOrganizationRepository,
@@ -22,6 +23,9 @@ from vaultlog.infrastructure.database.repositories.identity import (
     SqlAlchemySessionRepository,
     SqlAlchemyTotpSecretRepository,
     SqlAlchemyUserRepository,
+)
+from vaultlog.infrastructure.database.repositories.organizations import (
+    SqlAlchemyInvitationTokenLookup,
 )
 
 
@@ -35,6 +39,7 @@ class SqlAlchemyIdentityUnitOfWork:
     organizations: OrganizationRepository
     totp_secrets: TotpSecretRepository
     recovery_codes: RecoveryCodeRepository
+    invitation_lookup: InvitationTokenLookup
 
     def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         self._session_factory = session_factory
@@ -49,6 +54,7 @@ class SqlAlchemyIdentityUnitOfWork:
         self.organizations = SqlAlchemyOrganizationRepository(self.session)
         self.totp_secrets = SqlAlchemyTotpSecretRepository(self.session)
         self.recovery_codes = SqlAlchemyRecoveryCodeRepository(self.session)
+        self.invitation_lookup = SqlAlchemyInvitationTokenLookup(self.session)
         return self
 
     async def __aexit__(

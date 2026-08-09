@@ -50,11 +50,11 @@ async def _issue_credentials(
     user_agent: str | None,
     amr: tuple[str, ...],
 ) -> TokenPair:
-    tenant_id = await memberships.get_default_tenant_id(user_id)
+    tenant_id = await memberships.get_tenant_id(user_id)
     if tenant_id is None:
         raise AuthenticationError("Invalid email or password")
 
-    session = await sessions.add(user_id=user_id, user_agent=user_agent)
+    session = await sessions.add(user_id=user_id, user_agent=user_agent, amr=amr)
     raw_refresh = tokens.generate_refresh_token()
     await refresh_tokens.add(
         session_id=session.id,
@@ -102,6 +102,9 @@ class IdentityService:
         normalized = email.strip().lower()
 
         if await self._users.get_by_email(normalized) is not None:
+            raise RegistrationConflictError("Registration failed")
+
+        if await self._memberships.has_membership_for_email(normalized):
             raise RegistrationConflictError("Registration failed")
 
         user = await self._users.add(
@@ -192,11 +195,16 @@ class IdentityService:
         )
         await self._sessions.touch(session.id, last_used_at=now)
 
-        tenant_id = await self._memberships.get_default_tenant_id(session.user_id)
+        tenant_id = await self._memberships.get_tenant_id(session.user_id)
         if tenant_id is None:
             raise AuthenticationError("Invalid refresh token")
 
-        access = self._tokens.mint_access_token(session.user_id, tenant_id, session.id)
+        access = self._tokens.mint_access_token(
+            session.user_id,
+            tenant_id,
+            session.id,
+            amr=session.amr,
+        )
         return TokenPair(access_token=access, refresh_token=raw_new)
 
     async def logout(self, raw_refresh_token: str) -> None:

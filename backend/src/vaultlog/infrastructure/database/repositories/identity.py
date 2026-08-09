@@ -42,6 +42,7 @@ def _to_session(row: AuthSessionModel) -> AuthSession:
         revocation_reason=row.revocation_reason,
         user_agent=row.user_agent,
         last_used_at=row.last_used_at,
+        amr=tuple(row.amr),
     )
 
 
@@ -110,19 +111,44 @@ class SqlAlchemyMembershipRepository:
         self._session.add(MembershipModel(tenant_id=tenant_id, user_id=user_id, role=role))
         await self._session.flush()
 
-    async def get_default_tenant_id(self, user_id: uuid.UUID) -> uuid.UUID | None:
+    async def get_tenant_id(self, user_id: uuid.UUID) -> uuid.UUID | None:
         result: uuid.UUID | None = await self._session.scalar(
             select(MembershipModel.tenant_id).where(MembershipModel.user_id == user_id).limit(1)
         )
         return result
+
+    async def get_role(self, user_id: uuid.UUID) -> str | None:
+        result: str | None = await self._session.scalar(
+            select(MembershipModel.role).where(MembershipModel.user_id == user_id).limit(1)
+        )
+        return result
+
+    async def has_membership(self, user_id: uuid.UUID) -> bool:
+        result = await self.get_tenant_id(user_id)
+        return result is not None
+
+    async def has_membership_for_email(self, email: str) -> bool:
+        result = await self._session.scalar(
+            select(MembershipModel.id)
+            .join(UserModel, UserModel.id == MembershipModel.user_id)
+            .where(UserModel.email == email)
+            .limit(1)
+        )
+        return result is not None
 
 
 class SqlAlchemySessionRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def add(self, user_id: uuid.UUID, user_agent: str | None) -> AuthSession:
-        row = AuthSessionModel(user_id=user_id, user_agent=user_agent)
+    async def add(
+        self,
+        user_id: uuid.UUID,
+        user_agent: str | None,
+        *,
+        amr: tuple[str, ...] = ("pwd",),
+    ) -> AuthSession:
+        row = AuthSessionModel(user_id=user_id, user_agent=user_agent, amr=list(amr))
         self._session.add(row)
         await self._session.flush()
         return _to_session(row)

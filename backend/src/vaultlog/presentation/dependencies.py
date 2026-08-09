@@ -23,8 +23,19 @@ from vaultlog.application.identity.use_cases import (
     StartTotpEnrollment,
     StepUpVerify,
 )
+from vaultlog.application.organizations.use_cases import (
+    AcceptInvitation,
+    CreateInvitation,
+    GetOrganization,
+    ListInvitations,
+    ListMembers,
+    PreviewInvitation,
+    RemoveMember,
+    RevokeInvitation,
+)
 from vaultlog.application.ports.identity_unit_of_work import IdentityUnitOfWork
 from vaultlog.application.ports.tenant_context import TenantContext
+from vaultlog.application.ports.tenant_unit_of_work import TenantUnitOfWork
 from vaultlog.application.secrets.use_cases import (
     CreateSecret,
     DeleteSecret,
@@ -41,11 +52,17 @@ from vaultlog.application.vaults.use_cases import (
     UpdateVault,
 )
 from vaultlog.domain.audit.models import ActorContext
-from vaultlog.domain.identity.exceptions import StepUpRequiredError, TokenValidationError
+from vaultlog.domain.identity.exceptions import (
+    MfaEnrollmentRequiredError,
+    StepUpRequiredError,
+    TokenValidationError,
+)
 from vaultlog.infrastructure.database.identity_unit_of_work import (
     SqlAlchemyIdentityUnitOfWork,
 )
 from vaultlog.infrastructure.database.unit_of_work import SqlAlchemyUnitOfWork
+from vaultlog.infrastructure.email.logging_sender import LoggingEmailSender
+from vaultlog.infrastructure.email.smtp import SmtpEmailSender
 from vaultlog.infrastructure.security.mfa import PyotpTotpVerifier
 from vaultlog.infrastructure.security.passwords import Argon2Hasher
 from vaultlog.infrastructure.security.rate_limit import RedisRateLimiter
@@ -141,8 +158,8 @@ def get_identity_uow_factory(
 
 def get_tenant_uow_factory_for_tenant(
     session_factory: async_sessionmaker[AsyncSession] = Depends(get_app_session_factory),
-) -> Callable[[UUID], SqlAlchemyUnitOfWork]:
-    def factory(tenant_id: UUID) -> SqlAlchemyUnitOfWork:
+) -> Callable[[UUID], TenantUnitOfWork]:
+    def factory(tenant_id: UUID) -> TenantUnitOfWork:
         return SqlAlchemyUnitOfWork(session_factory, TenantContext(tenant_id=tenant_id))
 
     return factory
@@ -212,7 +229,7 @@ def rate_limit(
 
 def get_register_user(
     uow_factory: Callable[[], IdentityUnitOfWork] = Depends(get_identity_uow_factory),
-    tenant_uow_factory: Callable[[UUID], SqlAlchemyUnitOfWork] = Depends(
+    tenant_uow_factory: Callable[[UUID], TenantUnitOfWork] = Depends(
         get_tenant_uow_factory_for_tenant
     ),
     passwords: Argon2Hasher = Depends(get_password_hasher),
@@ -423,10 +440,32 @@ def require_step_up(purpose: StepUpPurpose) -> Callable[..., Awaitable[Principal
     return dependency
 
 
+@lru_cache
+def get_email_sender() -> SmtpEmailSender | LoggingEmailSender:
+    settings = get_settings()
+    if settings.environment == "test":
+        return LoggingEmailSender()
+    return SmtpEmailSender(settings)
+
+
+async def require_mfa_if_owner(
+    principal: Principal = Depends(current_principal),
+    uow_factory: Callable[[], IdentityUnitOfWork] = Depends(get_identity_uow_factory),
+) -> Principal:
+    async with uow_factory() as uow:
+        role = await uow.memberships.get_role(principal.user_id)
+        user = await uow.users.get(principal.user_id)
+        if user is None:
+            raise _unauthorized
+        if role == "owner" and not user.mfa_enabled:
+            raise MfaEnrollmentRequiredError("MFA enrollment required")
+    return principal
+
+
 def get_tenant_uow(
     principal: Principal = Depends(current_principal),
     session_factory: async_sessionmaker[AsyncSession] = Depends(get_app_session_factory),
-) -> SqlAlchemyUnitOfWork:
+) -> TenantUnitOfWork:
     context = TenantContext(tenant_id=principal.tenant_id)
     return SqlAlchemyUnitOfWork(session_factory, context)
 
@@ -434,57 +473,57 @@ def get_tenant_uow(
 def get_tenant_uow_factory(
     principal: Principal = Depends(current_principal),
     session_factory: async_sessionmaker[AsyncSession] = Depends(get_app_session_factory),
-) -> Callable[[], SqlAlchemyUnitOfWork]:
+) -> Callable[[], TenantUnitOfWork]:
     context = TenantContext(tenant_id=principal.tenant_id)
 
-    def factory() -> SqlAlchemyUnitOfWork:
+    def factory() -> TenantUnitOfWork:
         return SqlAlchemyUnitOfWork(session_factory, context)
 
     return factory
 
 
 def get_record_access_denial(
-    uow_factory: Callable[[], SqlAlchemyUnitOfWork] = Depends(get_tenant_uow_factory),
+    uow_factory: Callable[[], TenantUnitOfWork] = Depends(get_tenant_uow_factory),
 ) -> RecordAccessDenial:
     return RecordAccessDenial(uow_factory)
 
 
 def get_create_vault(
-    uow_factory: Callable[[], SqlAlchemyUnitOfWork] = Depends(get_tenant_uow_factory),
+    uow_factory: Callable[[], TenantUnitOfWork] = Depends(get_tenant_uow_factory),
     record_denial: RecordAccessDenial = Depends(get_record_access_denial),
 ) -> CreateVault:
     return CreateVault(uow_factory, record_denial)
 
 
 def get_list_vaults(
-    uow_factory: Callable[[], SqlAlchemyUnitOfWork] = Depends(get_tenant_uow_factory),
+    uow_factory: Callable[[], TenantUnitOfWork] = Depends(get_tenant_uow_factory),
 ) -> ListVaults:
     return ListVaults(uow_factory)
 
 
 def get_update_vault(
-    uow_factory: Callable[[], SqlAlchemyUnitOfWork] = Depends(get_tenant_uow_factory),
+    uow_factory: Callable[[], TenantUnitOfWork] = Depends(get_tenant_uow_factory),
     record_denial: RecordAccessDenial = Depends(get_record_access_denial),
 ) -> UpdateVault:
     return UpdateVault(uow_factory, record_denial)
 
 
 def get_delete_vault(
-    uow_factory: Callable[[], SqlAlchemyUnitOfWork] = Depends(get_tenant_uow_factory),
+    uow_factory: Callable[[], TenantUnitOfWork] = Depends(get_tenant_uow_factory),
     record_denial: RecordAccessDenial = Depends(get_record_access_denial),
 ) -> DeleteVault:
     return DeleteVault(uow_factory, record_denial)
 
 
 def get_manage_grant(
-    uow_factory: Callable[[], SqlAlchemyUnitOfWork] = Depends(get_tenant_uow_factory),
+    uow_factory: Callable[[], TenantUnitOfWork] = Depends(get_tenant_uow_factory),
     record_denial: RecordAccessDenial = Depends(get_record_access_denial),
 ) -> ManageGrant:
     return ManageGrant(uow_factory, record_denial)
 
 
 def get_create_secret(
-    uow_factory: Callable[[], SqlAlchemyUnitOfWork] = Depends(get_tenant_uow_factory),
+    uow_factory: Callable[[], TenantUnitOfWork] = Depends(get_tenant_uow_factory),
     kek: LocalKEKProvider = Depends(get_kek_provider),
     encryptor: AesGcmSecretEncryptor = Depends(get_secret_encryptor),
     record_denial: RecordAccessDenial = Depends(get_record_access_denial),
@@ -493,7 +532,7 @@ def get_create_secret(
 
 
 def get_list_secrets(
-    uow_factory: Callable[[], SqlAlchemyUnitOfWork] = Depends(get_tenant_uow_factory),
+    uow_factory: Callable[[], TenantUnitOfWork] = Depends(get_tenant_uow_factory),
     kek: LocalKEKProvider = Depends(get_kek_provider),
     encryptor: AesGcmSecretEncryptor = Depends(get_secret_encryptor),
 ) -> ListSecrets:
@@ -501,7 +540,7 @@ def get_list_secrets(
 
 
 def get_reveal_secret(
-    uow_factory: Callable[[], SqlAlchemyUnitOfWork] = Depends(get_tenant_uow_factory),
+    uow_factory: Callable[[], TenantUnitOfWork] = Depends(get_tenant_uow_factory),
     kek: LocalKEKProvider = Depends(get_kek_provider),
     encryptor: AesGcmSecretEncryptor = Depends(get_secret_encryptor),
     record_denial: RecordAccessDenial = Depends(get_record_access_denial),
@@ -510,7 +549,7 @@ def get_reveal_secret(
 
 
 def get_rotate_secret(
-    uow_factory: Callable[[], SqlAlchemyUnitOfWork] = Depends(get_tenant_uow_factory),
+    uow_factory: Callable[[], TenantUnitOfWork] = Depends(get_tenant_uow_factory),
     kek: LocalKEKProvider = Depends(get_kek_provider),
     encryptor: AesGcmSecretEncryptor = Depends(get_secret_encryptor),
     record_denial: RecordAccessDenial = Depends(get_record_access_denial),
@@ -519,7 +558,7 @@ def get_rotate_secret(
 
 
 def get_delete_secret(
-    uow_factory: Callable[[], SqlAlchemyUnitOfWork] = Depends(get_tenant_uow_factory),
+    uow_factory: Callable[[], TenantUnitOfWork] = Depends(get_tenant_uow_factory),
     kek: LocalKEKProvider = Depends(get_kek_provider),
     encryptor: AesGcmSecretEncryptor = Depends(get_secret_encryptor),
     record_denial: RecordAccessDenial = Depends(get_record_access_denial),
@@ -528,6 +567,78 @@ def get_delete_secret(
 
 
 def get_list_audit_events(
-    uow_factory: Callable[[], SqlAlchemyUnitOfWork] = Depends(get_tenant_uow_factory),
+    uow_factory: Callable[[], TenantUnitOfWork] = Depends(get_tenant_uow_factory),
 ) -> ListAuditEvents:
     return ListAuditEvents(uow_factory)
+
+
+def _org_use_case_deps(
+    settings: Settings = Depends(get_settings),
+    email_sender: SmtpEmailSender | LoggingEmailSender = Depends(get_email_sender),
+) -> tuple[str, SmtpEmailSender | LoggingEmailSender]:
+    return settings.invite_base_url, email_sender
+
+
+def get_get_organization(
+    uow_factory: Callable[[], TenantUnitOfWork] = Depends(get_tenant_uow_factory),
+    org_deps: tuple[str, SmtpEmailSender | LoggingEmailSender] = Depends(_org_use_case_deps),
+) -> GetOrganization:
+    invite_base_url, email_sender = org_deps
+    return GetOrganization(uow_factory, invite_base_url, email_sender)
+
+
+def get_create_invitation(
+    uow_factory: Callable[[], TenantUnitOfWork] = Depends(get_tenant_uow_factory),
+    identity_uow_factory: Callable[[], IdentityUnitOfWork] = Depends(get_identity_uow_factory),
+    org_deps: tuple[str, SmtpEmailSender | LoggingEmailSender] = Depends(_org_use_case_deps),
+) -> CreateInvitation:
+    invite_base_url, email_sender = org_deps
+    return CreateInvitation(uow_factory, identity_uow_factory, invite_base_url, email_sender)
+
+
+def get_list_invitations(
+    uow_factory: Callable[[], TenantUnitOfWork] = Depends(get_tenant_uow_factory),
+    org_deps: tuple[str, SmtpEmailSender | LoggingEmailSender] = Depends(_org_use_case_deps),
+) -> ListInvitations:
+    invite_base_url, email_sender = org_deps
+    return ListInvitations(uow_factory, invite_base_url, email_sender)
+
+
+def get_revoke_invitation(
+    uow_factory: Callable[[], TenantUnitOfWork] = Depends(get_tenant_uow_factory),
+    org_deps: tuple[str, SmtpEmailSender | LoggingEmailSender] = Depends(_org_use_case_deps),
+) -> RevokeInvitation:
+    invite_base_url, email_sender = org_deps
+    return RevokeInvitation(uow_factory, invite_base_url, email_sender)
+
+
+def get_preview_invitation(
+    identity_uow_factory: Callable[[], IdentityUnitOfWork] = Depends(get_identity_uow_factory),
+) -> PreviewInvitation:
+    return PreviewInvitation(identity_uow_factory)
+
+
+def get_accept_invitation(
+    tenant_uow_factory: Callable[[UUID], TenantUnitOfWork] = Depends(
+        get_tenant_uow_factory_for_tenant
+    ),
+    identity_uow_factory: Callable[[], IdentityUnitOfWork] = Depends(get_identity_uow_factory),
+    passwords: Argon2Hasher = Depends(get_password_hasher),
+) -> AcceptInvitation:
+    return AcceptInvitation(tenant_uow_factory, identity_uow_factory, passwords)
+
+
+def get_list_members(
+    uow_factory: Callable[[], TenantUnitOfWork] = Depends(get_tenant_uow_factory),
+    org_deps: tuple[str, SmtpEmailSender | LoggingEmailSender] = Depends(_org_use_case_deps),
+) -> ListMembers:
+    invite_base_url, email_sender = org_deps
+    return ListMembers(uow_factory, invite_base_url, email_sender)
+
+
+def get_remove_member(
+    uow_factory: Callable[[], TenantUnitOfWork] = Depends(get_tenant_uow_factory),
+    org_deps: tuple[str, SmtpEmailSender | LoggingEmailSender] = Depends(_org_use_case_deps),
+) -> RemoveMember:
+    invite_base_url, email_sender = org_deps
+    return RemoveMember(uow_factory, invite_base_url, email_sender)

@@ -53,6 +53,10 @@ async def seed_rbac_tenant(owner_engine: AsyncEngine, app_engine: AsyncEngine) -
             {"t": str(ORG_ID)},
         )
         await conn.execute(
+            text("INSERT INTO organization (id, name) VALUES (:t, 'RBAC Org')"),
+            {"t": ORG_ID},
+        )
+        await conn.execute(
             text(
                 """
                 INSERT INTO membership (id, tenant_id, user_id, role)

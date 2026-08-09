@@ -112,14 +112,11 @@ Organize by **bounded context** (feature area), not by technical type at the rep
 ```text
 domain/
   identity/          # auth, sessions, passwords (reference implementation)
-    models.py        # User, TokenPair, AuthSession — pure dataclasses
-    password.py      # validate_password_strength — value-object rules
-    ports.py         # Repository and security Protocols
-    services.py      # IdentityService — all auth business rules
-    exceptions.py    # PasswordPolicyError, AuthenticationError, ...
-  vaults/            # future
-  secrets/           # future
-  access/            # future (authorization vocabulary)
+  organizations/     # invitations, members, org views
+  vaults/            # ...
+  secrets/           # ...
+  access/            # authorization vocabulary
+  audit/             # ...
 ```
 
 **Domain services** (e.g. [`IdentityService`](backend/src/vaultlog/domain/identity/services.py)) encapsulate multi-step rules that belong to one context:

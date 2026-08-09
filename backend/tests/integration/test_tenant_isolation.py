@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import pytest
 from sqlalchemy import text
 
 from tests.integration.fixtures.constants import SEED_USER_ID, TENANT_A, TENANT_B
+
+pytestmark = pytest.mark.usefixtures("baseline_data")
 
 
 async def test_tenant_a_sees_own_vaults(scoped_session):

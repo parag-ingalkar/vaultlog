@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import pytest
 from sqlalchemy import text
 
 from tests.integration.fixtures.constants import TENANT_A
 from vaultlog.application.ports.tenant_context import TenantContext
 from vaultlog.infrastructure.database.engine import build_session_factory
 from vaultlog.infrastructure.database.unit_of_work import SqlAlchemyUnitOfWork
+
+pytestmark = pytest.mark.usefixtures("baseline_data")
 
 
 async def test_uow_sets_tenant_context_and_rolls_back_on_error(app_engine):

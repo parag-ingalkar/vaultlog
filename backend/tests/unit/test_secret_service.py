@@ -263,7 +263,7 @@ async def test_delete_requires_step_up() -> None:
 
 
 @pytest.mark.asyncio
-async def test_member_without_grant_cannot_list() -> None:
-    service = build_service(role=OrgRole.MEMBER, grant=None)
+async def test_viewer_cannot_write_secrets() -> None:
+    service = build_service(role=OrgRole.VIEWER, grant=None)
     with pytest.raises(ForbiddenError):
-        await service.list(USER_ID, TENANT_ID, VAULT_ID)
+        await service.create(USER_ID, TENANT_ID, VAULT_ID, "n", "v", None)
