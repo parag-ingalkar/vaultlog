@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+import { KeyRound, Plus, Users } from "lucide-react";
 import { useAuth } from "@/domains/auth/auth-provider";
 import { useVaultQuery } from "@/domains/vaults/queries";
 import {
@@ -15,9 +16,12 @@ import { QueryBoundary, getQueryState } from "@/components/query-boundary";
 import { StaleIndicator } from "@/components/stale-indicator";
 import { StepUpModal } from "@/components/step-up-modal";
 import { useStepUpHandler } from "@/hooks/use-step-up-handler";
+import { BackLink } from "@/components/back-link";
+import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardHeader } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
+import { ChevronRight } from "lucide-react";
 
 export default function VaultDetailPage() {
   const params = useParams<{ vaultId: string }>();
@@ -40,14 +44,14 @@ export default function VaultDetailPage() {
   const vaultState = getQueryState(vault);
   const secretsState = getQueryState(secrets);
 
-  const canManage =
-    capabilities?.can_create_vaults ?? false;
+  const canManage = capabilities?.can_create_vaults ?? false;
   const canCreateSecret = me?.role !== "viewer";
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editName) return;
     await updateVault.mutateAsync({ name: editName });
+    setEditName("");
   };
 
   const handleDelete = async () => {
@@ -75,72 +79,81 @@ export default function VaultDetailPage() {
   };
 
   return (
-    <div className="space-y-4">
-      <Card>
-        <QueryBoundary state={vaultState}>
-          {vault.data && (
-            <>
-              <CardHeader
-                title={vault.data.name}
-                description={vault.data.description ?? undefined}
-                action={
-                  <div className="flex items-center gap-2">
-                    <StaleIndicator visible={vaultState.isBackgroundFetching} />
-                    <Link
-                      href={`/vaults/${vaultId}/grants`}
-                      className="text-sm text-emerald-600 hover:underline"
-                    >
+    <div className="space-y-6">
+      <BackLink href="/vaults">All vaults</BackLink>
+
+      <QueryBoundary state={vaultState} loadingRows={2}>
+        {vault.data && (
+          <PageHeader
+            title={vault.data.name}
+            description={vault.data.description ?? undefined}
+            action={
+              <div className="flex items-center gap-2">
+                <StaleIndicator visible={vaultState.isBackgroundFetching} />
+                {canManage && (
+                  <Link href={`/vaults/${vaultId}/grants`}>
+                    <Button variant="secondary">
+                      <Users className="h-4 w-4" aria-hidden />
                       Grants
-                    </Link>
-                  </div>
-                }
-              />
-              {canManage && (
-                <div className="space-y-4">
-                  <form onSubmit={handleUpdate} className="flex gap-2">
-                    <Input
-                      label="Rename vault"
-                      value={editName}
-                      onChange={(e) => setEditName(e.target.value)}
-                      placeholder={vault.data.name}
-                    />
-                    <Button type="submit" variant="secondary" className="mt-6">
-                      Save
                     </Button>
-                  </form>
-                  <Button variant="danger" onClick={handleDelete}>
-                    Delete vault
-                  </Button>
-                </div>
-              )}
-            </>
-          )}
-        </QueryBoundary>
-      </Card>
+                  </Link>
+                )}
+              </div>
+            }
+          />
+        )}
+      </QueryBoundary>
+
+      {canManage && vault.data && (
+        <Card>
+          <h2 className="text-sm font-medium text-ink">Vault settings</h2>
+          <form onSubmit={handleUpdate} className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="flex-1">
+              <Input
+                label="Rename vault"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                placeholder={vault.data.name}
+              />
+            </div>
+            <Button type="submit" variant="secondary" disabled={!editName}>
+              Save name
+            </Button>
+          </form>
+          <div className="mt-4 border-t border-border pt-4">
+            <Button variant="danger" onClick={handleDelete}>
+              Delete vault
+            </Button>
+          </div>
+        </Card>
+      )}
 
       <Card>
-        <CardHeader
-          title="Secrets"
-          description="Metadata only — values are never shown in the list."
-          action={
-            <div className="flex items-center gap-2">
-              <StaleIndicator visible={secretsState.isBackgroundFetching} />
-              {canCreateSecret && (
-                <Button
-                  variant="secondary"
-                  onClick={() => setShowSecretForm((v) => !v)}
-                >
-                  {showSecretForm ? "Cancel" : "New secret"}
-                </Button>
-              )}
-            </div>
-          }
-        />
+        <div className="mb-5 flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold text-ink">Secrets</h2>
+            <p className="mt-1 text-sm text-muted">
+              Metadata only — values are revealed on the detail page.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <StaleIndicator visible={secretsState.isBackgroundFetching} />
+            {canCreateSecret && (
+              <Button
+                variant="secondary"
+                onClick={() => setShowSecretForm((v) => !v)}
+              >
+                <Plus className="h-4 w-4" aria-hidden />
+                {showSecretForm ? "Cancel" : "New secret"}
+              </Button>
+            )}
+          </div>
+        </div>
 
         {showSecretForm && (
           <form
             onSubmit={handleCreateSecret}
-            className="mb-4 space-y-3 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800"
+            className="mb-6 space-y-3 rounded-[var(--radius-panel)] border border-border bg-surface-2 p-4"
           >
             <Input
               label="Name"
@@ -159,7 +172,7 @@ export default function VaultDetailPage() {
               value={secretDescription}
               onChange={(e) => setSecretDescription(e.target.value)}
             />
-            <Button type="submit" disabled={createSecret.isPending}>
+            <Button type="submit" loading={createSecret.isPending}>
               Create secret
             </Button>
           </form>
@@ -167,20 +180,42 @@ export default function VaultDetailPage() {
 
         <QueryBoundary
           state={secretsState}
-          emptyMessage="No secrets in this vault yet."
+          emptyMessage="No secrets yet"
+          emptyDescription="Add a secret to store credentials, API keys, or tokens."
+          emptyAction={
+            canCreateSecret ? (
+              <Button variant="secondary" onClick={() => setShowSecretForm(true)}>
+                <Plus className="h-4 w-4" aria-hidden />
+                Add secret
+              </Button>
+            ) : undefined
+          }
         >
-          <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
+          <ul className="divide-y divide-border">
             {secrets.data?.map((secret) => (
-              <li key={secret.id} className="py-3">
+              <li key={secret.id}>
                 <Link
                   href={`/vaults/${vaultId}/secrets/${secret.id}`}
-                  className="block hover:text-emerald-600"
+                  className="group flex items-center justify-between gap-4 py-4"
                 >
-                  <p className="font-medium">{secret.name}</p>
-                  <p className="text-sm text-zinc-500">
-                    v{secret.current_version}
-                    {secret.description ? ` · ${secret.description}` : ""}
-                  </p>
+                  <div className="flex min-w-0 items-start gap-3">
+                    <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-surface-2 text-muted group-hover:text-primary">
+                      <KeyRound className="h-4 w-4" aria-hidden />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="font-medium text-ink group-hover:text-primary">
+                        {secret.name}
+                      </p>
+                      <p className="mt-0.5 text-sm text-muted">
+                        v{secret.current_version}
+                        {secret.description ? ` · ${secret.description}` : ""}
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight
+                    className="h-4 w-4 shrink-0 text-muted group-hover:text-primary"
+                    aria-hidden
+                  />
                 </Link>
               </li>
             ))}

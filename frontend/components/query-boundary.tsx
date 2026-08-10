@@ -1,34 +1,40 @@
 import type { ReactNode } from "react";
 import { getQueryState, type QueryStateView } from "@/lib/query/query-state";
+import { ListSkeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Inbox } from "lucide-react";
 
 type QueryBoundaryProps = {
   state: QueryStateView;
   children: ReactNode;
   emptyMessage?: string;
-  loadingMessage?: string;
+  emptyDescription?: string;
+  emptyAction?: ReactNode;
+  loadingRows?: number;
 };
 
 export function QueryBoundary({
   state,
   children,
-  emptyMessage = "No items found.",
-  loadingMessage = "Loading…",
+  emptyMessage = "Nothing here yet",
+  emptyDescription,
+  emptyAction,
+  loadingRows = 4,
 }: QueryBoundaryProps) {
   if (state.isInitialLoading) {
-    return (
-      <div className="flex items-center justify-center py-12 text-sm text-zinc-500">
-        {loadingMessage}
-      </div>
-    );
+    return <ListSkeleton rows={loadingRows} />;
   }
 
   if (state.isError) {
     return (
-      <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/50 dark:text-red-300">
+      <div
+        className="rounded-[var(--radius-panel)] border border-danger/30 bg-danger-subtle px-4 py-3 text-sm text-danger"
+        role="alert"
+      >
         {state.error?.message ?? "Something went wrong."}
         {state.isRateLimited && state.retryAfter && (
           <span className="mt-1 block">
-            Retry in {state.retryAfter} seconds.
+            Try again in {state.retryAfter} seconds.
           </span>
         )}
       </div>
@@ -37,9 +43,12 @@ export function QueryBoundary({
 
   if (state.isEmpty) {
     return (
-      <div className="rounded-lg border border-dashed border-zinc-300 px-4 py-12 text-center text-sm text-zinc-500 dark:border-zinc-700">
-        {emptyMessage}
-      </div>
+      <EmptyState
+        icon={Inbox}
+        title={emptyMessage}
+        description={emptyDescription}
+        action={emptyAction}
+      />
     );
   }
 

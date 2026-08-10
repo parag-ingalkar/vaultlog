@@ -2,15 +2,19 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Lock } from "lucide-react";
 import { useAuth } from "@/domains/auth/auth-provider";
+import { cn } from "@/lib/cn";
 
 const navItems = [
   { href: "/vaults", label: "Vaults", show: () => true },
   {
     href: "/team",
     label: "Team",
-    show: (caps?: { can_manage_members?: boolean; can_manage_invitations?: boolean }) =>
-      caps?.can_manage_members || caps?.can_manage_invitations,
+    show: (caps?: {
+      can_manage_members?: boolean;
+      can_manage_invitations?: boolean;
+    }) => caps?.can_manage_members || caps?.can_manage_invitations,
   },
   {
     href: "/audit",
@@ -25,16 +29,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { me, capabilities } = useAuth();
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      <header className="border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
-          <div>
-            <p className="text-xs uppercase tracking-wide text-zinc-500">
-              VaultLog
+    <div className="min-h-screen bg-bg">
+      <header className="sticky top-0 z-[var(--z-sticky)] border-b border-border bg-surface/95 backdrop-blur-sm">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4 px-4 py-3 sm:px-6">
+          <div className="flex min-w-0 items-center gap-3">
+            <Link href="/vaults" className="flex items-center gap-2">
+              <span className="flex h-8 w-8 items-center justify-center rounded-[var(--radius-control)] bg-primary text-primary-ink">
+                <Lock className="h-4 w-4" aria-hidden />
+              </span>
+              <span className="text-base font-semibold text-ink">VaultLog</span>
+            </Link>
+            <span className="hidden h-4 w-px bg-border sm:block" aria-hidden />
+            <p className="hidden truncate text-sm text-muted sm:block">
+              {me?.organization.name}
             </p>
-            <p className="font-semibold">{me?.organization.name}</p>
           </div>
-          <nav className="flex items-center gap-1">
+
+          <nav className="flex flex-wrap items-center gap-1" aria-label="Main">
             {navItems
               .filter((item) => item.show(capabilities))
               .map((item) => {
@@ -45,11 +56,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <Link
                     key={item.href}
                     href={item.href}
-                    className={`rounded-lg px-3 py-2 text-sm font-medium transition ${
+                    className={cn(
+                      "rounded-[var(--radius-control)] px-3 py-2 text-sm font-medium transition-colors duration-[var(--transition)]",
                       active
-                        ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
-                        : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
-                    }`}
+                        ? "bg-primary-subtle text-primary"
+                        : "text-muted hover:bg-surface-2 hover:text-ink",
+                    )}
+                    aria-current={active ? "page" : undefined}
                   >
                     {item.label}
                   </Link>
@@ -58,7 +71,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </nav>
         </div>
       </header>
-      <main className="mx-auto max-w-6xl px-4 py-6">{children}</main>
+
+      <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
+        {children}
+      </main>
     </div>
   );
 }

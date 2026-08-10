@@ -4,12 +4,14 @@ import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { isApiError } from "@/lib/api/errors";
+import { fieldErrorsFromApi } from "@/lib/form-errors";
 import { useInvitationPreviewQuery } from "@/domains/invitations/queries";
 import { useAcceptInvitationMutation } from "@/domains/invitations/mutations";
 import { QueryBoundary, getQueryState } from "@/components/query-boundary";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 function AcceptInviteContent() {
   const searchParams = useSearchParams();
@@ -20,6 +22,9 @@ function AcceptInviteContent() {
   const [accepted, setAccepted] = useState(false);
 
   const state = getQueryState(preview);
+  const fieldErrors = isApiError(accept.error)
+    ? fieldErrorsFromApi(accept.error.fields)
+    : {};
 
   const handleAccept = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,8 +39,8 @@ function AcceptInviteContent() {
   if (!token) {
     return (
       <Card>
-        <h1 className="text-xl font-semibold">Invalid invitation link</h1>
-        <p className="mt-2 text-sm text-zinc-500">
+        <h1 className="text-xl font-semibold text-ink">Invalid invitation link</h1>
+        <p className="mt-2 text-sm text-muted">
           This link is missing a token. Check your email for the correct link.
         </p>
       </Card>
@@ -45,12 +50,12 @@ function AcceptInviteContent() {
   if (accepted) {
     return (
       <Card>
-        <h1 className="text-xl font-semibold">Invitation accepted</h1>
-        <p className="mt-2 text-sm text-zinc-500">
+        <h1 className="text-xl font-semibold text-ink">You&apos;re all set</h1>
+        <p className="mt-2 text-sm text-muted">
           Your account is ready. Sign in to access your organization.
         </p>
-        <Link href="/login" className="mt-4 inline-block text-emerald-600">
-          Go to sign in
+        <Link href="/login" className="mt-6 block">
+          <Button className="w-full">Go to sign in</Button>
         </Link>
       </Card>
     );
@@ -58,15 +63,16 @@ function AcceptInviteContent() {
 
   return (
     <Card>
-      <QueryBoundary state={state} loadingMessage="Loading invitation…">
+      <QueryBoundary state={state} loadingRows={3}>
         {preview.data && (
           <>
-            <h1 className="text-xl font-semibold">
+            <h1 className="text-xl font-semibold text-ink">
               Join {preview.data.organization_name}
             </h1>
-            <p className="mt-2 text-sm text-zinc-500">
-              You&apos;ve been invited as <strong>{preview.data.role}</strong>{" "}
-              for {preview.data.email_masked}.
+            <p className="mt-2 text-sm text-muted">
+              You&apos;ve been invited as{" "}
+              <Badge variant="default">{preview.data.role}</Badge> for{" "}
+              {preview.data.email_masked}.
             </p>
             <form onSubmit={handleAccept} className="mt-6 space-y-4">
               <Input
@@ -77,9 +83,11 @@ function AcceptInviteContent() {
                 required
                 minLength={12}
                 maxLength={128}
+                hint="At least 12 characters"
+                error={fieldErrors.password}
               />
-              {accept.isError && (
-                <p className="text-sm text-red-600">
+              {accept.isError && !fieldErrors.password && (
+                <p className="text-sm text-danger" role="alert">
                   {isApiError(accept.error)
                     ? "Could not accept invitation. Check your password."
                     : "Accept failed."}
@@ -87,10 +95,10 @@ function AcceptInviteContent() {
               )}
               <Button
                 type="submit"
-                disabled={accept.isPending}
+                loading={accept.isPending}
                 className="w-full"
               >
-                {accept.isPending ? "Accepting…" : "Accept invitation"}
+                Accept invitation
               </Button>
             </form>
           </>
@@ -105,7 +113,7 @@ export default function AcceptInvitePage() {
     <Suspense
       fallback={
         <Card>
-          <p className="text-sm text-zinc-500">Loading invitation…</p>
+          <p className="text-sm text-muted">Loading invitation…</p>
         </Card>
       }
     >

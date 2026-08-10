@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 import { isApiError } from "@/lib/api/errors";
 import { isMfaRequiredResponse } from "@/domains/auth/api";
 import {
@@ -13,8 +14,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const registered = searchParams.get("registered") === "1";
   const login = useLoginMutation();
   const verifyMfa = useVerifyMfaMutation();
   const [email, setEmail] = useState("");
@@ -30,9 +33,6 @@ export default function LoginPage() {
         setChallengeToken(result.challenge_token);
         return;
       }
-      // #region agent log
-      fetch('http://127.0.0.1:7651/ingest/5b33c6d3-514d-482d-adf9-f29f91cb685f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'67e7e7'},body:JSON.stringify({sessionId:'67e7e7',location:'login/page.tsx:handleLogin',message:'navigating to /vaults after login',data:{mfaRequired:false},timestamp:Date.now(),hypothesisId:'C'})}).catch(()=>{});
-      // #endregion
       router.replace("/vaults");
     } catch {
       // error shown below
@@ -53,19 +53,20 @@ export default function LoginPage() {
     }
   };
 
-  const error =
-    login.error ?? verifyMfa.error
-      ? (login.error ?? verifyMfa.error) instanceof Error
-        ? (login.error ?? verifyMfa.error)?.message
-        : "Sign in failed"
-      : null;
+  const error = login.error ?? verifyMfa.error;
 
   return (
     <Card>
-      <h1 className="text-xl font-semibold">Sign in to VaultLog</h1>
-      <p className="mt-1 text-sm text-zinc-500">
+      <h1 className="text-xl font-semibold text-ink">Sign in</h1>
+      <p className="mt-1 text-sm text-muted">
         Access your organization&apos;s vaults and secrets.
       </p>
+
+      {registered && (
+        <p className="mt-4 rounded-[var(--radius-control)] bg-success-subtle px-3 py-2 text-sm text-success">
+          Account created. Sign in to continue.
+        </p>
+      )}
 
       {!challengeToken ? (
         <form onSubmit={handleLogin} className="mt-6 space-y-4">
@@ -86,44 +87,66 @@ export default function LoginPage() {
             autoComplete="current-password"
           />
           {error && (
-            <p className="text-sm text-red-600">
+            <p className="text-sm text-danger" role="alert">
               {isApiError(login.error)
                 ? "Invalid email or password."
-                : error}
+                : "Sign in failed."}
             </p>
           )}
-          <Button type="submit" disabled={login.isPending} className="w-full">
-            {login.isPending ? "Signing in…" : "Sign in"}
+          <Button type="submit" loading={login.isPending} className="w-full">
+            Sign in
           </Button>
         </form>
       ) : (
         <form onSubmit={handleMfa} className="mt-6 space-y-4">
-          <p className="text-sm text-zinc-500">
-            Enter your authenticator code or recovery code.
+          <p className="text-sm text-muted">
+            Enter the code from your authenticator app or a recovery code.
           </p>
           <Input
-            label="MFA code"
+            label="Authentication code"
             value={mfaCode}
             onChange={(e) => setMfaCode(e.target.value)}
             required
             minLength={6}
             autoComplete="one-time-code"
+            inputMode="numeric"
           />
           {error && (
-            <p className="text-sm text-red-600">Invalid code. Try again.</p>
+            <p className="text-sm text-danger" role="alert">
+              Invalid code. Try again.
+            </p>
           )}
-          <Button type="submit" disabled={verifyMfa.isPending} className="w-full">
-            {verifyMfa.isPending ? "Verifying…" : "Verify"}
+          <Button type="submit" loading={verifyMfa.isPending} className="w-full">
+            Verify
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            className="w-full"
+            onClick={() => {
+              setChallengeToken(null);
+              setMfaCode("");
+            }}
+          >
+            Back to sign in
           </Button>
         </form>
       )}
 
-      <p className="mt-4 text-center text-sm text-zinc-500">
+      <p className="mt-6 text-center text-sm text-muted">
         New organization?{" "}
-        <Link href="/register" className="text-emerald-600 hover:underline">
-          Register
+        <Link href="/register" className="font-medium text-primary hover:underline">
+          Create one
         </Link>
       </p>
     </Card>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<Card><p className="text-sm text-muted">Loading…</p></Card>}>
+      <LoginForm />
+    </Suspense>
   );
 }

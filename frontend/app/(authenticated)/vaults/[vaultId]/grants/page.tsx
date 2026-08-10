@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useVaultGrantsQuery } from "@/domains/vaults/queries";
 import {
@@ -10,9 +9,12 @@ import {
 } from "@/domains/vaults/mutations";
 import { useMembersQuery } from "@/domains/members/queries";
 import { QueryBoundary, getQueryState } from "@/components/query-boundary";
+import { BackLink } from "@/components/back-link";
+import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardHeader } from "@/components/ui/card";
+import { Select } from "@/components/ui/select";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import type { VaultPermission } from "@/lib/api/types";
 
 export default function VaultGrantsPage() {
@@ -35,85 +37,77 @@ export default function VaultGrantsPage() {
   };
 
   return (
-    <div className="space-y-4">
-      <Link
-        href={`/vaults/${vaultId}`}
-        className="text-sm text-emerald-600 hover:underline"
-      >
-        Back to vault
-      </Link>
+    <div className="space-y-6">
+      <BackLink href={`/vaults/${vaultId}`}>Back to vault</BackLink>
+
+      <PageHeader
+        title="Vault grants"
+        description="Fine-grained access for specific members. Org roles still apply by default."
+      />
 
       <Card>
-        <CardHeader
-          title="Vault grants"
-          description="Explicit per-member permissions for this vault."
-        />
-
-        <form onSubmit={handleUpsert} className="mb-6 space-y-3">
-          <Input
-            label="Membership ID"
+        <h2 className="text-sm font-medium text-ink">Add or update grant</h2>
+        <form onSubmit={handleUpsert} className="mt-4 space-y-3">
+          <Select
+            label="Member"
             value={membershipId}
             onChange={(e) => setMembershipId(e.target.value)}
             required
-            placeholder="UUID from team members list"
-          />
-          <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            Permission
-            <select
-              className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
-              value={permission}
-              onChange={(e) =>
-                setPermission(e.target.value as VaultPermission)
-              }
-            >
-              <option value="read">read</option>
-              <option value="write">write</option>
-              <option value="admin">admin</option>
-            </select>
-          </label>
-          <Button type="submit" disabled={upsertGrant.isPending}>
-            Upsert grant
+          >
+            <option value="" disabled>
+              Select a member
+            </option>
+            {members.data?.map((member) => (
+              <option key={member.membership_id} value={member.membership_id}>
+                {member.email} ({member.role})
+              </option>
+            ))}
+          </Select>
+          <Select
+            label="Permission"
+            value={permission}
+            onChange={(e) =>
+              setPermission(e.target.value as VaultPermission)
+            }
+          >
+            <option value="read">Read</option>
+            <option value="write">Write</option>
+            <option value="admin">Admin</option>
+          </Select>
+          <Button type="submit" loading={upsertGrant.isPending}>
+            Save grant
           </Button>
         </form>
-
-        <QueryBoundary state={grantsState} emptyMessage="No explicit grants.">
-          <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
-            {grants.data?.map((grant) => (
-              <li
-                key={grant.membership_id}
-                className="flex items-center justify-between py-3"
-              >
-                <div>
-                  <p className="font-medium">{grant.email}</p>
-                  <p className="text-sm text-zinc-500">
-                    {grant.permission} · {grant.org_role}
-                  </p>
-                </div>
-                <Button
-                  variant="ghost"
-                  onClick={() => revokeGrant.mutate(grant.membership_id)}
-                >
-                  Revoke
-                </Button>
-              </li>
-            ))}
-          </ul>
-        </QueryBoundary>
       </Card>
 
       <Card>
-        <CardHeader
-          title="Members reference"
-          description="Use membership_id when creating grants."
-        />
-        <ul className="divide-y divide-zinc-200 text-sm dark:divide-zinc-800">
-          {members.data?.map((member) => (
-            <li key={member.membership_id} className="py-2">
-              <span className="font-medium">{member.email}</span>
-              <span className="text-zinc-500"> · {member.membership_id}</span>
-            </li>
-          ))}
-        </ul>
+        <h2 className="text-sm font-medium text-ink">Active grants</h2>
+        <div className="mt-4">
+          <QueryBoundary state={grantsState} emptyMessage="No explicit grants">
+            <ul className="divide-y divide-border">
+              {grants.data?.map((grant) => (
+                <li
+                  key={grant.membership_id}
+                  className="flex flex-wrap items-center justify-between gap-3 py-4"
+                >
+                  <div>
+                    <p className="font-medium text-ink">{grant.email}</p>
+                    <p className="mt-0.5 text-sm text-muted">
+                      <Badge variant="muted">{grant.permission}</Badge>
+                      <span className="ml-2 capitalize">{grant.org_role}</span>
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    onClick={() => revokeGrant.mutate(grant.membership_id)}
+                  >
+                    Revoke
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </QueryBoundary>
+        </div>
       </Card>
     </div>
   );

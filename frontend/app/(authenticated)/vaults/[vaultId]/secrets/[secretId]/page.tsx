@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+import { Eye, EyeOff } from "lucide-react";
 import { isApiError } from "@/lib/api/errors";
 import { useAuth } from "@/domains/auth/auth-provider";
 import { useSecretsQuery } from "@/domains/secrets/queries";
@@ -14,9 +14,13 @@ import {
 import { QueryBoundary, getQueryState } from "@/components/query-boundary";
 import { StepUpModal } from "@/components/step-up-modal";
 import { useStepUpHandler } from "@/hooks/use-step-up-handler";
+import { BackLink } from "@/components/back-link";
+import { CopyButton } from "@/components/copy-button";
+import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardHeader } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 export default function SecretDetailPage() {
   const params = useParams<{ vaultId: string; secretId: string }>();
@@ -69,88 +73,105 @@ export default function SecretDetailPage() {
   };
 
   return (
-    <div className="space-y-4">
-      <Link
-        href={`/vaults/${vaultId}`}
-        className="text-sm text-emerald-600 hover:underline"
-      >
-        Back to vault
-      </Link>
+    <div className="space-y-6">
+      <BackLink href={`/vaults/${vaultId}`}>Back to vault</BackLink>
 
-      <Card>
-        <QueryBoundary state={state}>
-          {secret && (
-            <>
-              <CardHeader
-                title={secret.name}
-                description={
-                  secret.description
-                    ? `${secret.description} · v${secret.current_version}`
-                    : `Version ${secret.current_version}`
-                }
-              />
+      <QueryBoundary state={state}>
+        {secret && (
+          <>
+            <PageHeader
+              title={secret.name}
+              description={secret.description ?? undefined}
+              action={
+                <Badge variant="muted">v{secret.current_version}</Badge>
+              }
+            />
 
-              <div className="space-y-4">
-                <div className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
-                  <p className="text-sm text-zinc-500">Secret value</p>
-                  {revealedValue ? (
-                    <p className="mt-2 font-mono text-sm break-all">
-                      {revealedValue}
-                    </p>
-                  ) : (
-                    <p className="mt-2 text-sm text-zinc-400">
-                      Value hidden. Reveal to view temporarily.
-                    </p>
-                  )}
-                  <div className="mt-3 flex gap-2">
+            <Card>
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-sm font-medium text-ink">Secret value</h2>
+                  <p className="mt-1 text-sm text-muted">
+                    Reveal only when you need it. The value clears when you leave
+                    this page.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-[var(--radius-panel)] border border-border bg-surface-2 p-4">
+                {revealedValue ? (
+                  <p className="font-mono text-sm break-all text-ink">
+                    {revealedValue}
+                  </p>
+                ) : (
+                  <p className="font-mono text-sm text-muted">
+                    ••••••••••••••••••••
+                  </p>
+                )}
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {!revealedValue ? (
                     <Button
                       variant="secondary"
                       onClick={handleReveal}
-                      disabled={reveal.isPending}
+                      loading={reveal.isPending}
                     >
-                      {reveal.isPending ? "Revealing…" : "Reveal"}
+                      <Eye className="h-4 w-4" aria-hidden />
+                      Reveal
                     </Button>
-                    {revealedValue && (
+                  ) : (
+                    <>
+                      <CopyButton value={revealedValue} />
                       <Button
                         variant="ghost"
                         onClick={() => setRevealedValue(null)}
                       >
+                        <EyeOff className="h-4 w-4" aria-hidden />
                         Hide
                       </Button>
-                    )}
-                  </div>
-                  {reveal.isError && isApiError(reveal.error) && (
-                    <p className="mt-2 text-sm text-red-600">
-                      {reveal.error.isRateLimited()
-                        ? `Rate limited. Retry in ${reveal.error.retryAfter ?? "?"}s.`
-                        : "Reveal failed."}
-                    </p>
+                    </>
                   )}
                 </div>
 
-                {canModify && (
-                  <>
-                    <form onSubmit={handleRotate} className="space-y-3">
-                      <Input
-                        label="Rotate to new value"
-                        value={newValue}
-                        onChange={(e) => setNewValue(e.target.value)}
-                        required
-                      />
-                      <Button type="submit" disabled={rotate.isPending}>
-                        Rotate secret
-                      </Button>
-                    </form>
-                    <Button variant="danger" onClick={handleDelete}>
-                      Delete secret
-                    </Button>
-                  </>
+                {reveal.isError && isApiError(reveal.error) && (
+                  <p className="mt-3 text-sm text-danger" role="alert">
+                    {reveal.error.isRateLimited()
+                      ? `Rate limited. Try again in ${reveal.error.retryAfter ?? "?"}s.`
+                      : "Reveal failed."}
+                  </p>
                 )}
               </div>
-            </>
-          )}
-        </QueryBoundary>
-      </Card>
+            </Card>
+
+            {canModify && (
+              <Card>
+                <h2 className="text-sm font-medium text-ink">Rotate value</h2>
+                <p className="mt-1 text-sm text-muted">
+                  Replace the secret with a new value. The previous version is
+                  retained in the audit log.
+                </p>
+                <form onSubmit={handleRotate} className="mt-4 space-y-3">
+                  <Input
+                    label="New value"
+                    value={newValue}
+                    onChange={(e) => setNewValue(e.target.value)}
+                    required
+                  />
+                  <Button type="submit" loading={rotate.isPending}>
+                    Rotate secret
+                  </Button>
+                </form>
+
+                <div className="mt-6 border-t border-border pt-4">
+                  <Button variant="danger" onClick={handleDelete}>
+                    Delete secret
+                  </Button>
+                </div>
+              </Card>
+            )}
+          </>
+        )}
+      </QueryBoundary>
 
       {stepUpState && (
         <StepUpModal

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { isApiError } from "@/lib/api/errors";
 import type { StepUpPurpose } from "@/lib/api/types";
 import { useStepUpMutation } from "@/domains/auth/mutations";
+import { Dialog } from "./ui/dialog";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 
@@ -23,8 +24,6 @@ export function StepUpModal({
   const [code, setCode] = useState("");
   const stepUp = useStepUpMutation();
 
-  if (!open) return null;
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -38,41 +37,40 @@ export function StepUpModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-md rounded-xl border border-zinc-200 bg-white p-6 shadow-xl dark:border-zinc-800 dark:bg-zinc-900">
-        <h2 className="text-lg font-semibold">Confirm with authenticator</h2>
-        <p className="mt-1 text-sm text-zinc-500">
-          Enter the code from your authenticator app to continue.
-        </p>
-        <form onSubmit={handleSubmit} className="mt-4 space-y-4">
-          <Input
-            label="Authentication code"
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            placeholder="6-digit code"
-            autoComplete="one-time-code"
-            inputMode="numeric"
-            required
-            minLength={6}
-            maxLength={8}
-          />
-          {stepUp.isError && (
-            <p className="text-sm text-red-600">
-              {stepUp.error instanceof Error
-                ? stepUp.error.message
-                : "Verification failed"}
-            </p>
-          )}
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="ghost" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={stepUp.isPending}>
-              {stepUp.isPending ? "Verifying…" : "Confirm"}
-            </Button>
-          </div>
-        </form>
-      </div>
-    </div>
+    <Dialog
+      open={open}
+      onClose={onClose}
+      title="Confirm your identity"
+      description="Enter the code from your authenticator app to continue with this action."
+    >
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <Input
+          label="Authentication code"
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+          placeholder="6-digit code"
+          autoComplete="one-time-code"
+          inputMode="numeric"
+          required
+          minLength={6}
+          maxLength={8}
+        />
+        {stepUp.isError && (
+          <p className="text-sm text-danger" role="alert">
+            {stepUp.error instanceof Error
+              ? stepUp.error.message
+              : "Verification failed. Try again."}
+          </p>
+        )}
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" loading={stepUp.isPending}>
+            Confirm
+          </Button>
+        </div>
+      </form>
+    </Dialog>
   );
 }
