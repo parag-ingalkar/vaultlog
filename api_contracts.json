@@ -1467,6 +1467,54 @@
           ],
           "title": "AccessTokenResponse"
         },
+        "AuditActorResponse": {
+          "properties": {
+            "user_id": {
+              "type": "string",
+              "format": "uuid",
+              "title": "User Id"
+            },
+            "email": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Email"
+            },
+            "role": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Role"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "active",
+                "former_member",
+                "unknown"
+              ],
+              "title": "Status"
+            }
+          },
+          "type": "object",
+          "required": [
+            "user_id",
+            "email",
+            "role",
+            "status"
+          ],
+          "title": "AuditActorResponse"
+        },
         "AuditEventResponse": {
           "properties": {
             "id": {
@@ -1494,6 +1542,16 @@
                 }
               ],
               "title": "Actor User Id"
+            },
+            "actor": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/AuditActorResponse"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "session_id": {
               "anyOf": [
@@ -1547,6 +1605,7 @@
             "tenant_id",
             "sequence",
             "actor_user_id",
+            "actor",
             "session_id",
             "action",
             "target_type",

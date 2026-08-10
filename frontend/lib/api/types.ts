@@ -37,6 +37,7 @@ export type InvitationPreviewResponse = Schemas["InvitationPreviewResponse"];
 export type AcceptInvitationRequest = Schemas["AcceptInvitationRequest"];
 
 export type AuditEventResponse = Schemas["AuditEventResponse"];
+export type AuditActorResponse = Schemas["AuditActorResponse"];
 export type HealthResponse = Schemas["HealthResponse"];
 
 export type AuditFilters = {

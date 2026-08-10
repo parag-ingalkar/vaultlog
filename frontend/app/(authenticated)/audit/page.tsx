@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { AuditEventRow } from "@/domains/audit/audit-event-row";
 import { useAuditEventsInfiniteQuery } from "@/domains/audit/queries";
 import { QueryBoundary, getQueryState } from "@/components/query-boundary";
 import { Button } from "@/components/ui/button";
@@ -53,15 +54,7 @@ export default function AuditPage() {
       <QueryBoundary state={state} emptyMessage="No audit events yet.">
         <ul className="divide-y divide-zinc-200 text-sm dark:divide-zinc-800">
           {allEvents.map((event) => (
-            <li key={event.id} className="py-3">
-              <p className="font-medium">
-                {event.action}{" "}
-                <span className="text-zinc-500">({event.outcome})</span>
-              </p>
-              <p className="text-zinc-500">
-                #{event.sequence} · {event.occurred_at} · {event.target_type}
-              </p>
-            </li>
+            <AuditEventRow key={event.id} event={event} />
           ))}
         </ul>
         {audit.hasNextPage && (

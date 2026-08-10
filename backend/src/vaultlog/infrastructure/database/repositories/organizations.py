@@ -219,6 +219,34 @@ class SqlAlchemyMemberRepository:
         )
         return int(count or 0)
 
+    async def resolve_actors(
+        self,
+        tenant_id: uuid.UUID,
+        user_ids: set[uuid.UUID],
+    ) -> dict[uuid.UUID, tuple[str | None, OrgRole | None]]:
+        if not user_ids:
+            return {}
+
+        rows = await self._session.execute(
+            select(
+                UserModel.id,
+                UserModel.email,
+                MembershipModel.role,
+            )
+            .select_from(UserModel)
+            .outerjoin(
+                MembershipModel,
+                (MembershipModel.user_id == UserModel.id)
+                & (MembershipModel.tenant_id == tenant_id),
+            )
+            .where(UserModel.id.in_(user_ids))
+        )
+        resolved: dict[uuid.UUID, tuple[str | None, OrgRole | None]] = {}
+        for row in rows:
+            role = OrgRole(row.role) if row.role is not None else None
+            resolved[row.id] = (row.email, role)
+        return resolved
+
 
 class SqlAlchemyOrganizationReader:
     def __init__(self, session: AsyncSession) -> None:

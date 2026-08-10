@@ -495,6 +495,23 @@ export interface components {
             /** Expires In */
             expires_in: number;
         };
+        /** AuditActorResponse */
+        AuditActorResponse: {
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+            /** Email */
+            email: string | null;
+            /** Role */
+            role: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "former_member" | "unknown";
+        };
         /** AuditEventResponse */
         AuditEventResponse: {
             /**
@@ -511,6 +528,7 @@ export interface components {
             sequence: number;
             /** Actor User Id */
             actor_user_id: string | null;
+            actor: components["schemas"]["AuditActorResponse"] | null;
             /** Session Id */
             session_id: string | null;
             /** Action */

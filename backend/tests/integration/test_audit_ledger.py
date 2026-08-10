@@ -189,6 +189,20 @@ async def test_list_audit_events_requires_admin(app_engine, rbac_tenant) -> None
     assert isinstance(events, list)
 
 
+async def test_list_audit_events_enriches_actor(app_engine, rbac_tenant) -> None:
+    create, _, _ = _secret_use_cases(app_engine, ORG_ID)
+    await create.execute(make_actor(ADMIN_USER, ORG_ID), VAULT_ID, "actor-enrich", "v1", None)
+
+    list_events = ListAuditEvents(tenant_uow_factory(app_engine, ORG_ID))
+    events = await list_events.execute(make_actor(OWNER_USER, ORG_ID))
+
+    created = next(event for event in events if event.action == "secret.created")
+    assert created.actor is not None
+    assert created.actor.email == "admin@rbac.test"
+    assert created.actor.role == "admin"
+    assert created.actor.status.value == "active"
+
+
 async def test_cross_tenant_audit_isolation(app_engine, owner_engine, rbac_tenant) -> None:
     from tests.integration.fixtures.constants import TENANT_B
 

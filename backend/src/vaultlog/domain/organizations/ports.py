@@ -58,6 +58,12 @@ class MemberRepository(Protocol):
 
     async def count_by_role(self, tenant_id: uuid.UUID, role: OrgRole) -> int: ...
 
+    async def resolve_actors(
+        self,
+        tenant_id: uuid.UUID,
+        user_ids: set[uuid.UUID],
+    ) -> dict[uuid.UUID, tuple[str | None, OrgRole | None]]: ...
+
 
 class OrganizationReader(Protocol):
     async def get_name(self, tenant_id: uuid.UUID) -> str | None: ...
