@@ -7,6 +7,7 @@ import { withStepUp } from "@/lib/auth/with-step-up";
 import { setStepUpToken } from "@/lib/auth/step-up-cache";
 import { clearAllStepUpTokens } from "@/lib/auth/step-up-cache";
 import { invalidateSession } from "@/lib/query/invalidation";
+import { queryKeys } from "@/lib/query/keys";
 import type {
   LoginRequest,
   MfaVerifyRequest,
@@ -40,11 +41,17 @@ export function useLoginMutation() {
       if (!isMfaRequiredResponse(response)) {
         storeAccessTokenFromResponse(response);
       }
+      // #region agent log
+      fetch('http://127.0.0.1:7651/ingest/5b33c6d3-514d-482d-adf9-f29f91cb685f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'67e7e7'},body:JSON.stringify({sessionId:'67e7e7',location:'mutations.ts:login',message:'login mutationFn complete',data:{mfaRequired:isMfaRequiredResponse(response),hasToken:!isMfaRequiredResponse(response)},timestamp:Date.now(),hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
       return response;
     },
     onSuccess: async (data) => {
       if (!isMfaRequiredResponse(data)) {
         await invalidateSession(queryClient);
+        // #region agent log
+        fetch('http://127.0.0.1:7651/ingest/5b33c6d3-514d-482d-adf9-f29f91cb685f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'67e7e7'},body:JSON.stringify({sessionId:'67e7e7',location:'mutations.ts:login:onSuccess',message:'invalidateSession complete',data:{meQueryState:queryClient.getQueryState(queryKeys.auth.me())?.status,meData:!!queryClient.getQueryData(queryKeys.auth.me())},timestamp:Date.now(),hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
       }
     },
   });

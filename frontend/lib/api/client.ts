@@ -14,7 +14,12 @@ import type { AccessTokenResponse } from "./types";
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1";
 
-const COOKIE_ROUTES = new Set(["/auth/refresh", "/auth/logout"]);
+const COOKIE_ROUTES = new Set([
+  "/auth/login",
+  "/auth/mfa/verify",
+  "/auth/refresh",
+  "/auth/logout",
+]);
 
 type RequestOptions = {
   method?: string;
@@ -108,7 +113,18 @@ export async function apiRequest<T>(
   path: string,
   options: RequestOptions = {},
 ): Promise<T> {
-  const response = await fetch(buildUrl(path), buildFetchOptions(path, options));
+  const fetchOpts = buildFetchOptions(path, options);
+  // #region agent log
+  if (path === '/auth/login' || path === '/auth/me' || path === '/auth/refresh') {
+    fetch('http://127.0.0.1:7651/ingest/5b33c6d3-514d-482d-adf9-f29f91cb685f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'67e7e7'},body:JSON.stringify({sessionId:'67e7e7',location:'client.ts:apiRequest',message:'auth request start',data:{path,credentials:fetchOpts.credentials,hasAuth:!!(fetchOpts.headers as Record<string,string>)?.Authorization},timestamp:Date.now(),hypothesisId:'A'})}).catch(()=>{});
+  }
+  // #endregion
+  const response = await fetch(buildUrl(path), fetchOpts);
+  // #region agent log
+  if (path === '/auth/login' || path === '/auth/me' || path === '/auth/refresh') {
+    fetch('http://127.0.0.1:7651/ingest/5b33c6d3-514d-482d-adf9-f29f91cb685f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'67e7e7'},body:JSON.stringify({sessionId:'67e7e7',location:'client.ts:apiRequest',message:'auth request response',data:{path,status:response.status,ok:response.ok},timestamp:Date.now(),hypothesisId:'A'})}).catch(()=>{});
+  }
+  // #endregion
 
   if (
     response.status === 401 &&

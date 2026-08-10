@@ -1,8 +1,12 @@
 import type { QueryClient } from "@tanstack/react-query";
+import { getMe } from "@/domains/auth/api";
 import { queryKeys } from "./keys";
 
 export async function invalidateSession(queryClient: QueryClient): Promise<void> {
-  await queryClient.invalidateQueries({ queryKey: queryKeys.auth.me() });
+  await queryClient.fetchQuery({
+    queryKey: queryKeys.auth.me(),
+    queryFn: getMe,
+  });
 }
 
 export function invalidateOrganization(queryClient: QueryClient): void {

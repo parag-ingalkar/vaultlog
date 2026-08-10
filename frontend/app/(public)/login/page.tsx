@@ -30,6 +30,9 @@ export default function LoginPage() {
         setChallengeToken(result.challenge_token);
         return;
       }
+      // #region agent log
+      fetch('http://127.0.0.1:7651/ingest/5b33c6d3-514d-482d-adf9-f29f91cb685f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'67e7e7'},body:JSON.stringify({sessionId:'67e7e7',location:'login/page.tsx:handleLogin',message:'navigating to /vaults after login',data:{mfaRequired:false},timestamp:Date.now(),hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
       router.replace("/vaults");
     } catch {
       // error shown below

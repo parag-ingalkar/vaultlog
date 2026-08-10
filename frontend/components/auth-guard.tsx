@@ -10,6 +10,9 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (isInitializing) return;
+    // #region agent log
+    fetch('http://127.0.0.1:7651/ingest/5b33c6d3-514d-482d-adf9-f29f91cb685f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'67e7e7'},body:JSON.stringify({sessionId:'67e7e7',location:'auth-guard.tsx:redirect',message:'auth guard check',data:{isAuthenticated,isInitializing,mfaEnrollmentRequired,redirectTo:!isAuthenticated?'/login':mfaEnrollmentRequired?'/mfa/enroll':null},timestamp:Date.now(),hypothesisId:'C'})}).catch(()=>{});
+    // #endregion
     if (!isAuthenticated) {
       router.replace("/login");
       return;
