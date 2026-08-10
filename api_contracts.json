@@ -1,0 +1,2355 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+      "title": "VaultLog API",
+      "description": "Security-first multi-tenant vault and secret management API.",
+      "version": "0.1.0"
+    },
+    "paths": {
+      "/api/v1/health": {
+        "get": {
+          "tags": [
+            "health"
+          ],
+          "summary": "Liveness health check",
+          "operationId": "health_check_api_v1_health_get",
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HealthResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/v1/auth/register": {
+        "post": {
+          "tags": [
+            "auth"
+          ],
+          "summary": "Register",
+          "operationId": "register_api_v1_auth_register_post",
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegisterRequest"
+                }
+              }
+            },
+            "required": true
+          },
+          "responses": {
+            "201": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/RegisterResponse"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/v1/auth/me": {
+        "get": {
+          "tags": [
+            "auth"
+          ],
+          "summary": "Get Me",
+          "operationId": "get_me_api_v1_auth_me_get",
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/MeResponse"
+                  }
+                }
+              }
+            }
+          },
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ]
+        }
+      },
+      "/api/v1/auth/login": {
+        "post": {
+          "tags": [
+            "auth"
+          ],
+          "summary": "Login",
+          "operationId": "login_api_v1_auth_login_post",
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginRequest"
+                }
+              }
+            },
+            "required": true
+          },
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/components/schemas/AccessTokenResponse"
+                      },
+                      {
+                        "$ref": "#/components/schemas/MfaRequiredResponse"
+                      }
+                    ],
+                    "title": "Response Login Api V1 Auth Login Post"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/v1/auth/refresh": {
+        "post": {
+          "tags": [
+            "auth"
+          ],
+          "summary": "Refresh",
+          "operationId": "refresh_api_v1_auth_refresh_post",
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/AccessTokenResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/v1/auth/logout": {
+        "post": {
+          "tags": [
+            "auth"
+          ],
+          "summary": "Logout",
+          "operationId": "logout_api_v1_auth_logout_post",
+          "responses": {
+            "204": {
+              "description": "Successful Response"
+            }
+          }
+        }
+      },
+      "/api/v1/auth/mfa/enroll": {
+        "post": {
+          "tags": [
+            "auth"
+          ],
+          "summary": "Mfa Enroll",
+          "operationId": "mfa_enroll_api_v1_auth_mfa_enroll_post",
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/EnrollmentResponse"
+                  }
+                }
+              }
+            }
+          },
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ]
+        }
+      },
+      "/api/v1/auth/mfa/confirm": {
+        "post": {
+          "tags": [
+            "auth"
+          ],
+          "summary": "Mfa Confirm",
+          "operationId": "mfa_confirm_api_v1_auth_mfa_confirm_post",
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Body_mfa_confirm_api_v1_auth_mfa_confirm_post"
+                }
+              }
+            },
+            "required": true
+          },
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/RecoveryCodesResponse"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          },
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ]
+        }
+      },
+      "/api/v1/auth/mfa/verify": {
+        "post": {
+          "tags": [
+            "auth"
+          ],
+          "summary": "Mfa Verify",
+          "operationId": "mfa_verify_api_v1_auth_mfa_verify_post",
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MfaVerifyRequest"
+                }
+              }
+            },
+            "required": true
+          },
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/AccessTokenResponse"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/v1/auth/step-up/verify": {
+        "post": {
+          "tags": [
+            "auth"
+          ],
+          "summary": "Step Up Verify",
+          "operationId": "step_up_verify_api_v1_auth_step_up_verify_post",
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StepUpRequest"
+                }
+              }
+            },
+            "required": true
+          },
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/StepUpResponse"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          },
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ]
+        }
+      },
+      "/api/v1/auth/mfa": {
+        "delete": {
+          "tags": [
+            "auth"
+          ],
+          "summary": "Mfa Disable",
+          "operationId": "mfa_disable_api_v1_auth_mfa_delete",
+          "responses": {
+            "204": {
+              "description": "Successful Response"
+            }
+          },
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ]
+        }
+      },
+      "/api/v1/vaults": {
+        "get": {
+          "tags": [
+            "vaults"
+          ],
+          "summary": "List Vaults",
+          "operationId": "list_vaults_api_v1_vaults_get",
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "items": {
+                      "$ref": "#/components/schemas/VaultResponse"
+                    },
+                    "type": "array",
+                    "title": "Response List Vaults Api V1 Vaults Get"
+                  }
+                }
+              }
+            }
+          },
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ]
+        },
+        "post": {
+          "tags": [
+            "vaults"
+          ],
+          "summary": "Create Vault",
+          "operationId": "create_vault_api_v1_vaults_post",
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultCreateRequest"
+                }
+              }
+            },
+            "required": true
+          },
+          "responses": {
+            "201": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/VaultResponse"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          },
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ]
+        }
+      },
+      "/api/v1/vaults/{vault_id}": {
+        "get": {
+          "tags": [
+            "vaults"
+          ],
+          "summary": "Get Vault",
+          "operationId": "get_vault_api_v1_vaults__vault_id__get",
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "vault_id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "title": "Vault Id"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/VaultResponse"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "patch": {
+          "tags": [
+            "vaults"
+          ],
+          "summary": "Update Vault",
+          "operationId": "update_vault_api_v1_vaults__vault_id__patch",
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "vault_id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "title": "Vault Id"
+              }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultUpdateRequest"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/VaultResponse"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "delete": {
+          "tags": [
+            "vaults"
+          ],
+          "summary": "Delete Vault",
+          "operationId": "delete_vault_api_v1_vaults__vault_id__delete",
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "vault_id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "title": "Vault Id"
+              }
+            }
+          ],
+          "responses": {
+            "204": {
+              "description": "Successful Response"
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/v1/vaults/{vault_id}/grants": {
+        "get": {
+          "tags": [
+            "vaults"
+          ],
+          "summary": "List explicit vault grants",
+          "description": "Returns explicit vault_grant rows only. Members and viewers with org-wide access may not appear here.",
+          "operationId": "list_grants_api_v1_vaults__vault_id__grants_get",
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "vault_id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "title": "Vault Id"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/GrantResponse"
+                    },
+                    "title": "Response List Grants Api V1 Vaults  Vault Id  Grants Get"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "post": {
+          "tags": [
+            "vaults"
+          ],
+          "summary": "Upsert Grant",
+          "operationId": "upsert_grant_api_v1_vaults__vault_id__grants_post",
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "vault_id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "title": "Vault Id"
+              }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GrantRequest"
+                }
+              }
+            }
+          },
+          "responses": {
+            "204": {
+              "description": "Successful Response"
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/v1/vaults/{vault_id}/grants/{membership_id}": {
+        "delete": {
+          "tags": [
+            "vaults"
+          ],
+          "summary": "Revoke Grant",
+          "operationId": "revoke_grant_api_v1_vaults__vault_id__grants__membership_id__delete",
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "vault_id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "title": "Vault Id"
+              }
+            },
+            {
+              "name": "membership_id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "title": "Membership Id"
+              }
+            }
+          ],
+          "responses": {
+            "204": {
+              "description": "Successful Response"
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/v1/vaults/{vault_id}/secrets": {
+        "post": {
+          "tags": [
+            "secrets"
+          ],
+          "summary": "Create Secret",
+          "operationId": "create_secret_api_v1_vaults__vault_id__secrets_post",
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "vault_id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "title": "Vault Id"
+              }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecretCreateRequest"
+                }
+              }
+            }
+          },
+          "responses": {
+            "201": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/SecretMetaResponse"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "get": {
+          "tags": [
+            "secrets"
+          ],
+          "summary": "List Secrets",
+          "operationId": "list_secrets_api_v1_vaults__vault_id__secrets_get",
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "vault_id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "title": "Vault Id"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/SecretMetaResponse"
+                    },
+                    "title": "Response List Secrets Api V1 Vaults  Vault Id  Secrets Get"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/v1/vaults/{vault_id}/secrets/{secret_id}/reveal": {
+        "post": {
+          "tags": [
+            "secrets"
+          ],
+          "summary": "Reveal Secret",
+          "operationId": "reveal_secret_api_v1_vaults__vault_id__secrets__secret_id__reveal_post",
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "vault_id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "title": "Vault Id"
+              }
+            },
+            {
+              "name": "secret_id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "title": "Secret Id"
+              }
+            },
+            {
+              "name": "version",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Version"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/RevealResponse"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/v1/vaults/{vault_id}/secrets/{secret_id}/rotate": {
+        "post": {
+          "tags": [
+            "secrets"
+          ],
+          "summary": "Rotate Secret",
+          "operationId": "rotate_secret_api_v1_vaults__vault_id__secrets__secret_id__rotate_post",
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "vault_id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "title": "Vault Id"
+              }
+            },
+            {
+              "name": "secret_id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "title": "Secret Id"
+              }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RotateSecretRequest"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/SecretMetaResponse"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/v1/vaults/{vault_id}/secrets/{secret_id}": {
+        "delete": {
+          "tags": [
+            "secrets"
+          ],
+          "summary": "Delete Secret",
+          "operationId": "delete_secret_api_v1_vaults__vault_id__secrets__secret_id__delete",
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "vault_id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "title": "Vault Id"
+              }
+            },
+            {
+              "name": "secret_id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "title": "Secret Id"
+              }
+            }
+          ],
+          "responses": {
+            "204": {
+              "description": "Successful Response"
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/v1/audit-events": {
+        "get": {
+          "tags": [
+            "audit"
+          ],
+          "summary": "List Audit Events",
+          "operationId": "list_audit_events_api_v1_audit_events_get",
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "action",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Action"
+              }
+            },
+            {
+              "name": "target_id",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Target Id"
+              }
+            },
+            {
+              "name": "before_sequence",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Before Sequence"
+              }
+            },
+            {
+              "name": "limit",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "type": "integer",
+                "maximum": 500,
+                "minimum": 1,
+                "default": 100,
+                "title": "Limit"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/AuditEventResponse"
+                    },
+                    "title": "Response List Audit Events Api V1 Audit Events Get"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/v1/invitations": {
+        "get": {
+          "tags": [
+            "invitations"
+          ],
+          "summary": "List Invitations",
+          "operationId": "list_invitations_api_v1_invitations_get",
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "items": {
+                      "$ref": "#/components/schemas/InvitationResponse"
+                    },
+                    "type": "array",
+                    "title": "Response List Invitations Api V1 Invitations Get"
+                  }
+                }
+              }
+            }
+          },
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ]
+        },
+        "post": {
+          "tags": [
+            "invitations"
+          ],
+          "summary": "Create Invitation",
+          "operationId": "create_invitation_api_v1_invitations_post",
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationCreateRequest"
+                }
+              }
+            },
+            "required": true
+          },
+          "responses": {
+            "201": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/InvitationResponse"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          },
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ]
+        }
+      },
+      "/api/v1/invitations/{invitation_id}": {
+        "delete": {
+          "tags": [
+            "invitations"
+          ],
+          "summary": "Revoke Invitation",
+          "operationId": "revoke_invitation_api_v1_invitations__invitation_id__delete",
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "invitation_id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "title": "Invitation Id"
+              }
+            }
+          ],
+          "responses": {
+            "204": {
+              "description": "Successful Response"
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/v1/invitations/preview": {
+        "get": {
+          "tags": [
+            "invitations"
+          ],
+          "summary": "Preview Invitation",
+          "operationId": "preview_invitation_api_v1_invitations_preview_get",
+          "parameters": [
+            {
+              "name": "token",
+              "in": "query",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "title": "Token"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/InvitationPreviewResponse"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/v1/invitations/accept": {
+        "post": {
+          "tags": [
+            "invitations"
+          ],
+          "summary": "Accept Invitation",
+          "operationId": "accept_invitation_api_v1_invitations_accept_post",
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptInvitationRequest"
+                }
+              }
+            },
+            "required": true
+          },
+          "responses": {
+            "204": {
+              "description": "Successful Response"
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/v1/members": {
+        "get": {
+          "tags": [
+            "members"
+          ],
+          "summary": "List Members",
+          "operationId": "list_members_api_v1_members_get",
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "items": {
+                      "$ref": "#/components/schemas/MemberResponse"
+                    },
+                    "type": "array",
+                    "title": "Response List Members Api V1 Members Get"
+                  }
+                }
+              }
+            }
+          },
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ]
+        }
+      },
+      "/api/v1/members/{membership_id}": {
+        "delete": {
+          "tags": [
+            "members"
+          ],
+          "summary": "Remove Member",
+          "operationId": "remove_member_api_v1_members__membership_id__delete",
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "membership_id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "title": "Membership Id"
+              }
+            }
+          ],
+          "responses": {
+            "204": {
+              "description": "Successful Response"
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/v1/organization": {
+        "get": {
+          "tags": [
+            "organization"
+          ],
+          "summary": "Get Organization",
+          "operationId": "get_organization_api_v1_organization_get",
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/OrganizationResponse"
+                  }
+                }
+              }
+            }
+          },
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ]
+        }
+      }
+    },
+    "components": {
+      "schemas": {
+        "AcceptInvitationRequest": {
+          "properties": {
+            "token": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Token"
+            },
+            "password": {
+              "type": "string",
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Password"
+            }
+          },
+          "type": "object",
+          "required": [
+            "token",
+            "password"
+          ],
+          "title": "AcceptInvitationRequest"
+        },
+        "AccessTokenResponse": {
+          "properties": {
+            "access_token": {
+              "type": "string",
+              "title": "Access Token"
+            },
+            "token_type": {
+              "type": "string",
+              "title": "Token Type",
+              "default": "bearer"
+            },
+            "expires_in": {
+              "type": "integer",
+              "title": "Expires In"
+            }
+          },
+          "type": "object",
+          "required": [
+            "access_token",
+            "expires_in"
+          ],
+          "title": "AccessTokenResponse"
+        },
+        "AuditEventResponse": {
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Id"
+            },
+            "tenant_id": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant Id"
+            },
+            "sequence": {
+              "type": "integer",
+              "title": "Sequence"
+            },
+            "actor_user_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Actor User Id"
+            },
+            "session_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Session Id"
+            },
+            "action": {
+              "type": "string",
+              "title": "Action"
+            },
+            "target_type": {
+              "type": "string",
+              "title": "Target Type"
+            },
+            "target_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Target Id"
+            },
+            "outcome": {
+              "type": "string",
+              "title": "Outcome"
+            },
+            "metadata": {
+              "additionalProperties": true,
+              "type": "object",
+              "title": "Metadata"
+            },
+            "occurred_at": {
+              "type": "string",
+              "title": "Occurred At"
+            }
+          },
+          "type": "object",
+          "required": [
+            "id",
+            "tenant_id",
+            "sequence",
+            "actor_user_id",
+            "session_id",
+            "action",
+            "target_type",
+            "target_id",
+            "outcome",
+            "metadata",
+            "occurred_at"
+          ],
+          "title": "AuditEventResponse"
+        },
+        "Body_mfa_confirm_api_v1_auth_mfa_confirm_post": {
+          "properties": {
+            "code": {
+              "type": "string",
+              "maxLength": 8,
+              "minLength": 6,
+              "title": "Code"
+            }
+          },
+          "type": "object",
+          "required": [
+            "code"
+          ],
+          "title": "Body_mfa_confirm_api_v1_auth_mfa_confirm_post"
+        },
+        "EnrollmentResponse": {
+          "properties": {
+            "provisioning_uri": {
+              "type": "string",
+              "title": "Provisioning Uri"
+            }
+          },
+          "type": "object",
+          "required": [
+            "provisioning_uri"
+          ],
+          "title": "EnrollmentResponse"
+        },
+        "GrantRequest": {
+          "properties": {
+            "membership_id": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Membership Id"
+            },
+            "permission": {
+              "$ref": "#/components/schemas/VaultPermission"
+            }
+          },
+          "type": "object",
+          "required": [
+            "membership_id",
+            "permission"
+          ],
+          "title": "GrantRequest"
+        },
+        "GrantResponse": {
+          "properties": {
+            "membership_id": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Membership Id"
+            },
+            "user_id": {
+              "type": "string",
+              "format": "uuid",
+              "title": "User Id"
+            },
+            "email": {
+              "type": "string",
+              "title": "Email"
+            },
+            "org_role": {
+              "$ref": "#/components/schemas/OrgRole"
+            },
+            "permission": {
+              "$ref": "#/components/schemas/VaultPermission"
+            },
+            "granted_at": {
+              "type": "string",
+              "title": "Granted At"
+            }
+          },
+          "type": "object",
+          "required": [
+            "membership_id",
+            "user_id",
+            "email",
+            "org_role",
+            "permission",
+            "granted_at"
+          ],
+          "title": "GrantResponse"
+        },
+        "HTTPValidationError": {
+          "properties": {
+            "detail": {
+              "items": {
+                "$ref": "#/components/schemas/ValidationError"
+              },
+              "type": "array",
+              "title": "Detail"
+            }
+          },
+          "type": "object",
+          "title": "HTTPValidationError"
+        },
+        "HealthResponse": {
+          "properties": {
+            "status": {
+              "type": "string",
+              "title": "Status"
+            }
+          },
+          "type": "object",
+          "required": [
+            "status"
+          ],
+          "title": "HealthResponse"
+        },
+        "InvitationCreateRequest": {
+          "properties": {
+            "email": {
+              "type": "string",
+              "format": "email",
+              "title": "Email"
+            },
+            "role": {
+              "$ref": "#/components/schemas/OrgRole",
+              "description": "admin, member, or viewer"
+            }
+          },
+          "type": "object",
+          "required": [
+            "email",
+            "role"
+          ],
+          "title": "InvitationCreateRequest"
+        },
+        "InvitationPreviewResponse": {
+          "properties": {
+            "organization_name": {
+              "type": "string",
+              "title": "Organization Name"
+            },
+            "role": {
+              "$ref": "#/components/schemas/OrgRole"
+            },
+            "email_masked": {
+              "type": "string",
+              "title": "Email Masked"
+            }
+          },
+          "type": "object",
+          "required": [
+            "organization_name",
+            "role",
+            "email_masked"
+          ],
+          "title": "InvitationPreviewResponse"
+        },
+        "InvitationResponse": {
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Id"
+            },
+            "email": {
+              "type": "string",
+              "title": "Email"
+            },
+            "role": {
+              "$ref": "#/components/schemas/OrgRole"
+            },
+            "expires_at": {
+              "type": "string",
+              "title": "Expires At"
+            },
+            "created_at": {
+              "type": "string",
+              "title": "Created At"
+            }
+          },
+          "type": "object",
+          "required": [
+            "id",
+            "email",
+            "role",
+            "expires_at",
+            "created_at"
+          ],
+          "title": "InvitationResponse"
+        },
+        "LoginRequest": {
+          "properties": {
+            "email": {
+              "type": "string",
+              "format": "email",
+              "title": "Email"
+            },
+            "password": {
+              "type": "string",
+              "maxLength": 128,
+              "minLength": 1,
+              "title": "Password"
+            }
+          },
+          "type": "object",
+          "required": [
+            "email",
+            "password"
+          ],
+          "title": "LoginRequest"
+        },
+        "MeResponse": {
+          "properties": {
+            "user_id": {
+              "type": "string",
+              "title": "User Id"
+            },
+            "email": {
+              "type": "string",
+              "format": "email",
+              "title": "Email"
+            },
+            "mfa_enabled": {
+              "type": "boolean",
+              "title": "Mfa Enabled"
+            },
+            "mfa_enrollment_required": {
+              "type": "boolean",
+              "title": "Mfa Enrollment Required"
+            },
+            "membership_id": {
+              "type": "string",
+              "title": "Membership Id"
+            },
+            "role": {
+              "$ref": "#/components/schemas/OrgRole"
+            },
+            "organization": {
+              "$ref": "#/components/schemas/OrganizationSummary"
+            },
+            "session_id": {
+              "type": "string",
+              "title": "Session Id"
+            },
+            "amr": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array",
+              "title": "Amr"
+            },
+            "capabilities": {
+              "$ref": "#/components/schemas/UserCapabilitiesResponse"
+            }
+          },
+          "type": "object",
+          "required": [
+            "user_id",
+            "email",
+            "mfa_enabled",
+            "mfa_enrollment_required",
+            "membership_id",
+            "role",
+            "organization",
+            "session_id",
+            "amr",
+            "capabilities"
+          ],
+          "title": "MeResponse"
+        },
+        "MemberResponse": {
+          "properties": {
+            "membership_id": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Membership Id"
+            },
+            "user_id": {
+              "type": "string",
+              "format": "uuid",
+              "title": "User Id"
+            },
+            "email": {
+              "type": "string",
+              "title": "Email"
+            },
+            "role": {
+              "$ref": "#/components/schemas/OrgRole"
+            },
+            "created_at": {
+              "type": "string",
+              "title": "Created At"
+            }
+          },
+          "type": "object",
+          "required": [
+            "membership_id",
+            "user_id",
+            "email",
+            "role",
+            "created_at"
+          ],
+          "title": "MemberResponse"
+        },
+        "MfaRequiredResponse": {
+          "properties": {
+            "mfa_required": {
+              "type": "boolean",
+              "title": "Mfa Required",
+              "default": true
+            },
+            "challenge_token": {
+              "type": "string",
+              "title": "Challenge Token"
+            }
+          },
+          "type": "object",
+          "required": [
+            "challenge_token"
+          ],
+          "title": "MfaRequiredResponse"
+        },
+        "MfaVerifyRequest": {
+          "properties": {
+            "challenge_token": {
+              "type": "string",
+              "title": "Challenge Token"
+            },
+            "code": {
+              "type": "string",
+              "maxLength": 20,
+              "minLength": 6,
+              "title": "Code"
+            }
+          },
+          "type": "object",
+          "required": [
+            "challenge_token",
+            "code"
+          ],
+          "title": "MfaVerifyRequest"
+        },
+        "OrgRole": {
+          "type": "string",
+          "enum": [
+            "owner",
+            "admin",
+            "member",
+            "viewer"
+          ],
+          "title": "OrgRole"
+        },
+        "OrganizationResponse": {
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Id"
+            },
+            "name": {
+              "type": "string",
+              "title": "Name"
+            },
+            "caller_role": {
+              "$ref": "#/components/schemas/OrgRole"
+            }
+          },
+          "type": "object",
+          "required": [
+            "id",
+            "name",
+            "caller_role"
+          ],
+          "title": "OrganizationResponse"
+        },
+        "OrganizationSummary": {
+          "properties": {
+            "id": {
+              "type": "string",
+              "title": "Id"
+            },
+            "name": {
+              "type": "string",
+              "title": "Name"
+            }
+          },
+          "type": "object",
+          "required": [
+            "id",
+            "name"
+          ],
+          "title": "OrganizationSummary"
+        },
+        "RecoveryCodesResponse": {
+          "properties": {
+            "recovery_codes": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array",
+              "title": "Recovery Codes"
+            }
+          },
+          "type": "object",
+          "required": [
+            "recovery_codes"
+          ],
+          "title": "RecoveryCodesResponse"
+        },
+        "RegisterRequest": {
+          "properties": {
+            "email": {
+              "type": "string",
+              "format": "email",
+              "title": "Email"
+            },
+            "password": {
+              "type": "string",
+              "maxLength": 128,
+              "minLength": 12,
+              "title": "Password"
+            },
+            "organization_name": {
+              "type": "string",
+              "maxLength": 200,
+              "minLength": 1,
+              "title": "Organization Name"
+            }
+          },
+          "type": "object",
+          "required": [
+            "email",
+            "password",
+            "organization_name"
+          ],
+          "title": "RegisterRequest"
+        },
+        "RegisterResponse": {
+          "properties": {
+            "user_id": {
+              "type": "string",
+              "title": "User Id"
+            }
+          },
+          "type": "object",
+          "required": [
+            "user_id"
+          ],
+          "title": "RegisterResponse"
+        },
+        "RevealResponse": {
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Id"
+            },
+            "name": {
+              "type": "string",
+              "title": "Name"
+            },
+            "version": {
+              "type": "integer",
+              "title": "Version"
+            },
+            "value": {
+              "type": "string",
+              "title": "Value"
+            }
+          },
+          "type": "object",
+          "required": [
+            "id",
+            "name",
+            "version",
+            "value"
+          ],
+          "title": "RevealResponse"
+        },
+        "RotateSecretRequest": {
+          "properties": {
+            "value": {
+              "type": "string",
+              "maxLength": 10000,
+              "minLength": 1,
+              "title": "Value"
+            }
+          },
+          "type": "object",
+          "required": [
+            "value"
+          ],
+          "title": "RotateSecretRequest"
+        },
+        "SecretCreateRequest": {
+          "properties": {
+            "name": {
+              "type": "string",
+              "maxLength": 200,
+              "minLength": 1,
+              "title": "Name"
+            },
+            "value": {
+              "type": "string",
+              "maxLength": 10000,
+              "minLength": 1,
+              "title": "Value"
+            },
+            "description": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 1000
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Description"
+            }
+          },
+          "type": "object",
+          "required": [
+            "name",
+            "value"
+          ],
+          "title": "SecretCreateRequest"
+        },
+        "SecretMetaResponse": {
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Id"
+            },
+            "name": {
+              "type": "string",
+              "title": "Name"
+            },
+            "description": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Description"
+            },
+            "current_version": {
+              "type": "integer",
+              "title": "Current Version"
+            },
+            "created_at": {
+              "type": "string",
+              "title": "Created At"
+            },
+            "updated_at": {
+              "type": "string",
+              "title": "Updated At"
+            }
+          },
+          "type": "object",
+          "required": [
+            "id",
+            "name",
+            "description",
+            "current_version",
+            "created_at",
+            "updated_at"
+          ],
+          "title": "SecretMetaResponse"
+        },
+        "StepUpPurpose": {
+          "type": "string",
+          "enum": [
+            "step-up:delete-vault",
+            "step-up:delete-secret",
+            "step-up:remove-member",
+            "step-up:manage-mfa",
+            "step-up:rotate-keys"
+          ],
+          "title": "StepUpPurpose"
+        },
+        "StepUpRequest": {
+          "properties": {
+            "code": {
+              "type": "string",
+              "maxLength": 8,
+              "minLength": 6,
+              "title": "Code"
+            },
+            "purpose": {
+              "$ref": "#/components/schemas/StepUpPurpose"
+            }
+          },
+          "type": "object",
+          "required": [
+            "code",
+            "purpose"
+          ],
+          "title": "StepUpRequest"
+        },
+        "StepUpResponse": {
+          "properties": {
+            "step_up_token": {
+              "type": "string",
+              "title": "Step Up Token"
+            },
+            "expires_in": {
+              "type": "integer",
+              "title": "Expires In"
+            }
+          },
+          "type": "object",
+          "required": [
+            "step_up_token",
+            "expires_in"
+          ],
+          "title": "StepUpResponse"
+        },
+        "UserCapabilitiesResponse": {
+          "properties": {
+            "can_create_vaults": {
+              "type": "boolean",
+              "title": "Can Create Vaults"
+            },
+            "can_manage_members": {
+              "type": "boolean",
+              "title": "Can Manage Members"
+            },
+            "can_manage_invitations": {
+              "type": "boolean",
+              "title": "Can Manage Invitations"
+            },
+            "can_read_audit": {
+              "type": "boolean",
+              "title": "Can Read Audit"
+            }
+          },
+          "type": "object",
+          "required": [
+            "can_create_vaults",
+            "can_manage_members",
+            "can_manage_invitations",
+            "can_read_audit"
+          ],
+          "title": "UserCapabilitiesResponse"
+        },
+        "ValidationError": {
+          "properties": {
+            "loc": {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ]
+              },
+              "type": "array",
+              "title": "Location"
+            },
+            "msg": {
+              "type": "string",
+              "title": "Message"
+            },
+            "type": {
+              "type": "string",
+              "title": "Error Type"
+            },
+            "input": {
+              "title": "Input"
+            },
+            "ctx": {
+              "type": "object",
+              "title": "Context"
+            }
+          },
+          "type": "object",
+          "required": [
+            "loc",
+            "msg",
+            "type"
+          ],
+          "title": "ValidationError"
+        },
+        "VaultCreateRequest": {
+          "properties": {
+            "name": {
+              "type": "string",
+              "maxLength": 200,
+              "minLength": 1,
+              "title": "Name"
+            },
+            "description": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 1000
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Description"
+            }
+          },
+          "type": "object",
+          "required": [
+            "name"
+          ],
+          "title": "VaultCreateRequest"
+        },
+        "VaultPermission": {
+          "type": "string",
+          "enum": [
+            "read",
+            "write",
+            "admin"
+          ],
+          "title": "VaultPermission"
+        },
+        "VaultResponse": {
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Id"
+            },
+            "name": {
+              "type": "string",
+              "title": "Name"
+            },
+            "description": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Description"
+            },
+            "created_at": {
+              "type": "string",
+              "title": "Created At"
+            }
+          },
+          "type": "object",
+          "required": [
+            "id",
+            "name",
+            "description",
+            "created_at"
+          ],
+          "title": "VaultResponse"
+        },
+        "VaultUpdateRequest": {
+          "properties": {
+            "name": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200,
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Name"
+            },
+            "description": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 1000
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Description"
+            }
+          },
+          "type": "object",
+          "title": "VaultUpdateRequest"
+        }
+      },
+      "securitySchemes": {
+        "HTTPBearer": {
+          "type": "http",
+          "scheme": "bearer"
+        }
+      }
+    }
+  }
