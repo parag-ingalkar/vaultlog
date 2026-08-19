@@ -13,6 +13,7 @@ from vaultlog.domain.access.services import org_capabilities_for_role
             OrgRole.OWNER,
             {
                 "can_create_vaults": True,
+                "can_write_secrets": True,
                 "can_manage_members": True,
                 "can_manage_invitations": True,
                 "can_read_audit": True,
@@ -22,6 +23,7 @@ from vaultlog.domain.access.services import org_capabilities_for_role
             OrgRole.ADMIN,
             {
                 "can_create_vaults": True,
+                "can_write_secrets": True,
                 "can_manage_members": True,
                 "can_manage_invitations": True,
                 "can_read_audit": True,
@@ -31,6 +33,7 @@ from vaultlog.domain.access.services import org_capabilities_for_role
             OrgRole.MEMBER,
             {
                 "can_create_vaults": False,
+                "can_write_secrets": True,
                 "can_manage_members": False,
                 "can_manage_invitations": False,
                 "can_read_audit": False,
@@ -40,6 +43,7 @@ from vaultlog.domain.access.services import org_capabilities_for_role
             OrgRole.VIEWER,
             {
                 "can_create_vaults": False,
+                "can_write_secrets": False,
                 "can_manage_members": False,
                 "can_manage_invitations": False,
                 "can_read_audit": False,

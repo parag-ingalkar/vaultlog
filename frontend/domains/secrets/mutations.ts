@@ -20,34 +20,11 @@ export function useCreateSecretMutation(vaultId: string) {
 
   return useMutation({
     mutationFn: (body: SecretCreateRequest) => createSecret(vaultId, body),
-    onMutate: async (body) => {
-      await queryClient.cancelQueries({
-        queryKey: queryKeys.secrets.list(vaultId),
-      });
-      const previous = queryClient.getQueryData<SecretMetaResponse[]>(
+    onSuccess: (created) => {
+      queryClient.setQueryData<SecretMetaResponse[]>(
         queryKeys.secrets.list(vaultId),
+        (previous) => [...(previous ?? []), created],
       );
-      const placeholder: SecretMetaResponse = {
-        id: crypto.randomUUID(),
-        name: body.name,
-        description: body.description ?? null,
-        current_version: 1,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-      queryClient.setQueryData(queryKeys.secrets.list(vaultId), [
-        ...(previous ?? []),
-        placeholder,
-      ]);
-      return { previous };
-    },
-    onError: (_err, _body, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(
-          queryKeys.secrets.list(vaultId),
-          context.previous,
-        );
-      }
     },
     onSettled: () => invalidateSecrets(queryClient, vaultId),
   });

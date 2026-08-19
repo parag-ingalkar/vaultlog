@@ -26,27 +26,11 @@ export function useCreateVaultMutation() {
 
   return useMutation({
     mutationFn: (body: VaultCreateRequest) => createVault(body),
-    onMutate: async (body) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.vaults.list() });
-      const previous = queryClient.getQueryData<VaultResponse[]>(
+    onSuccess: (created) => {
+      queryClient.setQueryData<VaultResponse[]>(
         queryKeys.vaults.list(),
+        (previous) => [...(previous ?? []), created],
       );
-      const placeholder: VaultResponse = {
-        id: crypto.randomUUID(),
-        name: body.name,
-        description: body.description ?? null,
-        created_at: new Date().toISOString(),
-      };
-      queryClient.setQueryData(queryKeys.vaults.list(), [
-        ...(previous ?? []),
-        placeholder,
-      ]);
-      return { previous };
-    },
-    onError: (_err, _body, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(queryKeys.vaults.list(), context.previous);
-      }
     },
     onSettled: () => invalidateVaults(queryClient),
   });

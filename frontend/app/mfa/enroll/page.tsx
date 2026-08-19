@@ -33,13 +33,15 @@ export default function MfaEnrollPage() {
     }
   }, [isAuthenticated, isInitializing, router]);
 
+  const enrollMfa = enroll.mutate;
+
   useEffect(() => {
     if (enrolledRef.current) return;
     enrolledRef.current = true;
-    enroll.mutate(undefined, {
+    enrollMfa(undefined, {
       onSuccess: (data) => setProvisioningUri(data.provisioning_uri),
     });
-  }, [enroll]);
+  }, [enrollMfa]);
 
   const handleConfirm = async (e: React.FormEvent) => {
     e.preventDefault();

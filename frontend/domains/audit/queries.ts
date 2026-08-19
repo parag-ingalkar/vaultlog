@@ -7,6 +7,7 @@ const DEFAULT_LIMIT = 100;
 
 export function useAuditEventsInfiniteQuery(
   filters: Omit<AuditFilters, "before_sequence"> = {},
+  enabled = true,
 ) {
   const limit = filters.limit ?? DEFAULT_LIMIT;
 
@@ -26,5 +27,6 @@ export function useAuditEventsInfiniteQuery(
     },
     staleTime: 0,
     refetchOnWindowFocus: false,
+    enabled,
   });
 }

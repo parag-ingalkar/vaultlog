@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "@/lib/env";
 import { parseApiError } from "./errors";
 import {
   clearAccessToken,
@@ -9,10 +10,8 @@ import {
   scheduleProactiveRefresh,
   stopRefreshScheduler,
 } from "@/lib/auth/refresh-scheduler";
+import { notifySessionExpired } from "@/lib/auth/session-events";
 import type { AccessTokenResponse } from "./types";
-
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1";
 
 const COOKIE_ROUTES = new Set([
   "/auth/login",
@@ -42,12 +41,20 @@ function needsCredentials(path: string): boolean {
   return COOKIE_ROUTES.has(normalized);
 }
 
+function requestId(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
 function buildFetchOptions(
   path: string,
   options: RequestOptions,
 ): RequestInit {
   const headers: Record<string, string> = {
     Accept: "application/json",
+    "X-Request-ID": requestId(),
     ...options.headers,
   };
 
@@ -114,17 +121,7 @@ export async function apiRequest<T>(
   options: RequestOptions = {},
 ): Promise<T> {
   const fetchOpts = buildFetchOptions(path, options);
-  // #region agent log
-  if (path === '/auth/login' || path === '/auth/me' || path === '/auth/refresh') {
-    fetch('http://127.0.0.1:7651/ingest/5b33c6d3-514d-482d-adf9-f29f91cb685f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'67e7e7'},body:JSON.stringify({sessionId:'67e7e7',location:'client.ts:apiRequest',message:'auth request start',data:{path,credentials:fetchOpts.credentials,hasAuth:!!(fetchOpts.headers as Record<string,string>)?.Authorization},timestamp:Date.now(),hypothesisId:'A'})}).catch(()=>{});
-  }
-  // #endregion
   const response = await fetch(buildUrl(path), fetchOpts);
-  // #region agent log
-  if (path === '/auth/login' || path === '/auth/me' || path === '/auth/refresh') {
-    fetch('http://127.0.0.1:7651/ingest/5b33c6d3-514d-482d-adf9-f29f91cb685f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'67e7e7'},body:JSON.stringify({sessionId:'67e7e7',location:'client.ts:apiRequest',message:'auth request response',data:{path,status:response.status,ok:response.ok},timestamp:Date.now(),hypothesisId:'A'})}).catch(()=>{});
-  }
-  // #endregion
 
   if (
     response.status === 401 &&
@@ -135,8 +132,7 @@ export async function apiRequest<T>(
     try {
       await refreshSession();
     } catch {
-      clearAccessToken();
-      stopRefreshScheduler();
+      expireSession();
       throw await parseApiError(response);
     }
 
@@ -158,4 +154,9 @@ export function storeAccessTokenFromResponse(data: AccessTokenResponse): void {
 export function clearSession(): void {
   clearAccessToken();
   stopRefreshScheduler();
+}
+
+function expireSession(): void {
+  clearSession();
+  notifySessionExpired();
 }

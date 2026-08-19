@@ -9,10 +9,6 @@ const state: TokenState = {
 };
 
 export function getAccessToken(): string | null {
-  if (!state.accessToken) return null;
-  if (state.expiresAt && Date.now() >= state.expiresAt) {
-    return state.accessToken;
-  }
   return state.accessToken;
 }
 

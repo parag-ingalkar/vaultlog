@@ -4,18 +4,22 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { isApiError } from "@/lib/api/errors";
 import { isMfaRequiredResponse } from "@/domains/auth/api";
 import {
   useLoginMutation,
   useVerifyMfaMutation,
 } from "@/domains/auth/mutations";
+import type { MeResponse } from "@/lib/api/types";
+import { queryKeys } from "@/lib/query/keys";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 
 function LoginForm() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const registered = searchParams.get("registered") === "1";
   const login = useLoginMutation();
@@ -25,6 +29,11 @@ function LoginForm() {
   const [mfaCode, setMfaCode] = useState("");
   const [challengeToken, setChallengeToken] = useState<string | null>(null);
 
+  const goToApp = () => {
+    const me = queryClient.getQueryData<MeResponse>(queryKeys.auth.me());
+    router.replace(me?.mfa_enrollment_required ? "/mfa/enroll" : "/vaults");
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -33,7 +42,7 @@ function LoginForm() {
         setChallengeToken(result.challenge_token);
         return;
       }
-      router.replace("/vaults");
+      goToApp();
     } catch {
       // error shown below
     }
@@ -47,7 +56,7 @@ function LoginForm() {
         challenge_token: challengeToken,
         code: mfaCode,
       });
-      router.replace("/vaults");
+      goToApp();
     } catch {
       // error shown below
     }

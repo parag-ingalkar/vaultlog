@@ -808,6 +808,8 @@ export interface components {
         UserCapabilitiesResponse: {
             /** Can Create Vaults */
             can_create_vaults: boolean;
+            /** Can Write Secrets */
+            can_write_secrets: boolean;
             /** Can Manage Members */
             can_manage_members: boolean;
             /** Can Manage Invitations */

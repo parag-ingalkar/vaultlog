@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
 import { isApiError } from "@/lib/api/errors";
-import { useAuth } from "@/domains/auth/auth-provider";
+import { usePermissions } from "@/hooks/use-permissions";
 import { useSecretsQuery } from "@/domains/secrets/queries";
 import {
   useDeleteSecretMutation,
@@ -21,13 +21,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { MutationError } from "@/components/mutation-error";
 
 export default function SecretDetailPage() {
   const params = useParams<{ vaultId: string; secretId: string }>();
   const vaultId = params.vaultId;
   const secretId = params.secretId;
   const router = useRouter();
-  const { me } = useAuth();
+  const { canWriteSecrets } = usePermissions();
   const secrets = useSecretsQuery(vaultId);
   const reveal = useRevealSecretMutation(vaultId, secretId);
   const rotate = useRotateSecretMutation(vaultId, secretId);
@@ -37,13 +38,13 @@ export default function SecretDetailPage() {
   const [revealedValue, setRevealedValue] = useState<string | null>(null);
   const [newValue, setNewValue] = useState("");
   const secret = secrets.data?.find((s) => s.id === secretId);
-  const state = getQueryState(secrets);
+  const state = getQueryState(secrets, () => false);
 
   useEffect(() => {
     return () => setRevealedValue(null);
   }, []);
 
-  const canModify = me?.role !== "viewer";
+  const canModify = canWriteSecrets;
 
   const handleReveal = async () => {
     try {
@@ -56,9 +57,13 @@ export default function SecretDetailPage() {
 
   const handleRotate = async (e: React.FormEvent) => {
     e.preventDefault();
-    await rotate.mutateAsync({ value: newValue });
-    setNewValue("");
-    setRevealedValue(null);
+    try {
+      await rotate.mutateAsync({ value: newValue });
+      setNewValue("");
+      setRevealedValue(null);
+    } catch {
+      // shown via MutationError
+    }
   };
 
   const handleDelete = async () => {
@@ -77,7 +82,7 @@ export default function SecretDetailPage() {
       <BackLink href={`/vaults/${vaultId}`}>Back to vault</BackLink>
 
       <QueryBoundary state={state}>
-        {secret && (
+        {secret ? (
           <>
             <PageHeader
               title={secret.name}
@@ -160,6 +165,7 @@ export default function SecretDetailPage() {
                   <Button type="submit" loading={rotate.isPending}>
                     Rotate secret
                   </Button>
+                  <MutationError error={rotate.error} />
                 </form>
 
                 <div className="mt-6 border-t border-border pt-4">
@@ -170,6 +176,8 @@ export default function SecretDetailPage() {
               </Card>
             )}
           </>
+        ) : (
+          <p className="text-sm text-muted">This secret could not be found.</p>
         )}
       </QueryBoundary>
 

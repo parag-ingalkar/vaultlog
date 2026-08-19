@@ -2238,6 +2238,10 @@
               "type": "boolean",
               "title": "Can Create Vaults"
             },
+            "can_write_secrets": {
+              "type": "boolean",
+              "title": "Can Write Secrets"
+            },
             "can_manage_members": {
               "type": "boolean",
               "title": "Can Manage Members"
@@ -2254,6 +2258,7 @@
           "type": "object",
           "required": [
             "can_create_vaults",
+            "can_write_secrets",
             "can_manage_members",
             "can_manage_invitations",
             "can_read_audit"

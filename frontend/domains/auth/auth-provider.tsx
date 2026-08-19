@@ -58,12 +58,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const meQueryEnabled = bootstrapped && hasAccessToken();
   const meQuery = useMeQuery(meQueryEnabled);
 
-  // #region agent log
-  useEffect(() => {
-    fetch('http://127.0.0.1:7651/ingest/5b33c6d3-514d-482d-adf9-f29f91cb685f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'67e7e7'},body:JSON.stringify({sessionId:'67e7e7',location:'auth-provider.tsx:meQuery',message:'auth state snapshot',data:{bootstrapped,meQueryEnabled,hasToken:hasAccessToken(),meStatus:meQuery.status,hasMeData:!!meQuery.data,mfaEnrollmentRequired:meQuery.data?.mfa_enrollment_required},timestamp:Date.now(),hypothesisId:'B'})}).catch(()=>{});
-  }, [bootstrapped, meQueryEnabled, meQuery.status, meQuery.data]);
-  // #endregion
-
   const refetchMe = useCallback(async () => {
     await meQuery.refetch();
   }, [meQuery]);

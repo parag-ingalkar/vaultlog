@@ -26,12 +26,4 @@ export async function withStepUp<T>(
   }
 }
 
-export function ensureStepUpOrThrow(purpose: StepUpPurpose): string {
-  const token = getStepUpToken(purpose);
-  if (!token) {
-    throw new StepUpRequiredError(purpose);
-  }
-  return token;
-}
-
 export { isStepUpRequiredError };

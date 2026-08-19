@@ -3,8 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { KeyRound, Plus, Users } from "lucide-react";
-import { useAuth } from "@/domains/auth/auth-provider";
+import { KeyRound, Plus, Users, ChevronRight } from "lucide-react";
 import { useVaultQuery } from "@/domains/vaults/queries";
 import {
   useDeleteVaultMutation,
@@ -16,18 +15,19 @@ import { QueryBoundary, getQueryState } from "@/components/query-boundary";
 import { StaleIndicator } from "@/components/stale-indicator";
 import { StepUpModal } from "@/components/step-up-modal";
 import { useStepUpHandler } from "@/hooks/use-step-up-handler";
+import { usePermissions } from "@/hooks/use-permissions";
 import { BackLink } from "@/components/back-link";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { ChevronRight } from "lucide-react";
+import { MutationError } from "@/components/mutation-error";
 
 export default function VaultDetailPage() {
   const params = useParams<{ vaultId: string }>();
   const vaultId = params.vaultId;
   const router = useRouter();
-  const { capabilities, me } = useAuth();
+  const { canWriteSecrets, canManageGrants } = usePermissions();
   const vault = useVaultQuery(vaultId);
   const secrets = useSecretsQuery(vaultId);
   const updateVault = useUpdateVaultMutation(vaultId);
@@ -44,14 +44,18 @@ export default function VaultDetailPage() {
   const vaultState = getQueryState(vault);
   const secretsState = getQueryState(secrets);
 
-  const canManage = capabilities?.can_create_vaults ?? false;
-  const canCreateSecret = me?.role !== "viewer";
+  const canManage = canManageGrants;
+  const canCreateSecret = canWriteSecrets;
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editName) return;
-    await updateVault.mutateAsync({ name: editName });
-    setEditName("");
+    try {
+      await updateVault.mutateAsync({ name: editName });
+      setEditName("");
+    } catch {
+      // shown via MutationError
+    }
   };
 
   const handleDelete = async () => {
@@ -67,15 +71,19 @@ export default function VaultDetailPage() {
 
   const handleCreateSecret = async (e: React.FormEvent) => {
     e.preventDefault();
-    await createSecret.mutateAsync({
-      name: secretName,
-      value: secretValue,
-      description: secretDescription || null,
-    });
-    setSecretName("");
-    setSecretValue("");
-    setSecretDescription("");
-    setShowSecretForm(false);
+    try {
+      await createSecret.mutateAsync({
+        name: secretName,
+        value: secretValue,
+        description: secretDescription || null,
+      });
+      setSecretName("");
+      setSecretValue("");
+      setSecretDescription("");
+      setShowSecretForm(false);
+    } catch {
+      // shown via MutationError
+    }
   };
 
   return (
@@ -107,18 +115,21 @@ export default function VaultDetailPage() {
       {canManage && vault.data && (
         <Card>
           <h2 className="text-sm font-medium text-ink">Vault settings</h2>
-          <form onSubmit={handleUpdate} className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
-            <div className="flex-1">
-              <Input
-                label="Rename vault"
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-                placeholder={vault.data.name}
-              />
+          <form onSubmit={handleUpdate} className="mt-4 space-y-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+              <div className="flex-1">
+                <Input
+                  label="Rename vault"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  placeholder={vault.data.name}
+                />
+              </div>
+              <Button type="submit" variant="secondary" disabled={!editName}>
+                Save name
+              </Button>
             </div>
-            <Button type="submit" variant="secondary" disabled={!editName}>
-              Save name
-            </Button>
+            <MutationError error={updateVault.error} />
           </form>
           <div className="mt-4 border-t border-border pt-4">
             <Button variant="danger" onClick={handleDelete}>
@@ -172,6 +183,7 @@ export default function VaultDetailPage() {
               value={secretDescription}
               onChange={(e) => setSecretDescription(e.target.value)}
             />
+            <MutationError error={createSecret.error} />
             <Button type="submit" loading={createSecret.isPending}>
               Create secret
             </Button>

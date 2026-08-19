@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { FolderKey, Plus } from "lucide-react";
+import { FolderKey, Plus, ChevronRight } from "lucide-react";
 import { useAuth } from "@/domains/auth/auth-provider";
 import { useVaultsQuery } from "@/domains/vaults/queries";
 import { useCreateVaultMutation } from "@/domains/vaults/mutations";
@@ -12,7 +12,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { ChevronRight } from "lucide-react";
+import { MutationError } from "@/components/mutation-error";
 
 export default function VaultsPage() {
   const { capabilities } = useAuth();
@@ -26,13 +26,17 @@ export default function VaultsPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    await createVault.mutateAsync({
-      name,
-      description: description || null,
-    });
-    setName("");
-    setDescription("");
-    setShowForm(false);
+    try {
+      await createVault.mutateAsync({
+        name,
+        description: description || null,
+      });
+      setName("");
+      setDescription("");
+      setShowForm(false);
+    } catch {
+      // shown via MutationError
+    }
   };
 
   return (
@@ -73,6 +77,7 @@ export default function VaultsPage() {
               onChange={(e) => setDescription(e.target.value)}
               maxLength={1000}
             />
+            <MutationError error={createVault.error} />
             <Button type="submit" loading={createVault.isPending}>
               Create vault
             </Button>

@@ -17,10 +17,10 @@ export function useVaultQuery(vaultId: string) {
   });
 }
 
-export function useVaultGrantsQuery(vaultId: string) {
+export function useVaultGrantsQuery(vaultId: string, enabled = true) {
   return useQuery({
     queryKey: queryKeys.vaults.grants(vaultId),
     queryFn: () => listGrants(vaultId),
-    enabled: Boolean(vaultId),
+    enabled: Boolean(vaultId) && enabled,
   });
 }

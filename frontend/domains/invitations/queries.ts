@@ -2,11 +2,12 @@ import { useQuery } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query/keys";
 import { listInvitations, previewInvitation } from "./api";
 
-export function useInvitationsQuery() {
+export function useInvitationsQuery(enabled = true) {
   return useQuery({
     queryKey: queryKeys.invitations.list(),
     queryFn: listInvitations,
     staleTime: 60_000,
+    enabled,
   });
 }
 

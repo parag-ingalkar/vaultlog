@@ -36,7 +36,6 @@ export function clearRefreshTimer(): void {
 
 export function stopRefreshScheduler(): void {
   clearRefreshTimer();
-  refreshFn = null;
 }
 
 async function runRefresh(): Promise<void> {
