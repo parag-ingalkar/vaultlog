@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query/keys";
-import { getMe } from "./api";
+import { enrollMfa, getMe } from "./api";
 
 export function useMeQuery(enabled = true) {
   return useQuery({
@@ -9,5 +9,15 @@ export function useMeQuery(enabled = true) {
     enabled,
     staleTime: 60_000,
     refetchOnWindowFocus: true,
+  });
+}
+
+export function useMfaEnrollQuery(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.auth.mfaEnroll(),
+    queryFn: enrollMfa,
+    enabled,
+    staleTime: Infinity,
+    retry: 1,
   });
 }

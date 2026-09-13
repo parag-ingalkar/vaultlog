@@ -1,13 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ShieldCheck } from "lucide-react";
 import { useAuth } from "@/domains/auth/auth-provider";
-import {
-  useConfirmMfaMutation,
-  useEnrollMfaMutation,
-} from "@/domains/auth/mutations";
+import { useMfaEnrollQuery } from "@/domains/auth/queries";
+import { useConfirmMfaMutation } from "@/domains/auth/mutations";
 import { downloadTextFile } from "@/lib/copy";
 import { MfaQrCode } from "@/components/mfa-qr-code";
 import { CopyButton } from "@/components/copy-button";
@@ -19,12 +17,11 @@ import { ListSkeleton } from "@/components/ui/skeleton";
 export default function MfaEnrollPage() {
   const router = useRouter();
   const { isAuthenticated, isInitializing, refetchMe } = useAuth();
-  const enroll = useEnrollMfaMutation();
+  const enroll = useMfaEnrollQuery(isAuthenticated && !isInitializing);
   const confirm = useConfirmMfaMutation();
   const [code, setCode] = useState("");
   const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null);
-  const [provisioningUri, setProvisioningUri] = useState<string | null>(null);
-  const enrolledRef = useRef(false);
+  const provisioningUri = enroll.data?.provisioning_uri ?? null;
 
   useEffect(() => {
     if (isInitializing) return;
@@ -32,16 +29,6 @@ export default function MfaEnrollPage() {
       router.replace("/login");
     }
   }, [isAuthenticated, isInitializing, router]);
-
-  const enrollMfa = enroll.mutate;
-
-  useEffect(() => {
-    if (enrolledRef.current) return;
-    enrolledRef.current = true;
-    enrollMfa(undefined, {
-      onSuccess: (data) => setProvisioningUri(data.provisioning_uri),
-    });
-  }, [enrollMfa]);
 
   const handleConfirm = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -116,9 +103,24 @@ export default function MfaEnrollPage() {
           Owners must enroll MFA before accessing vaults and team features.
         </p>
 
-        {enroll.isPending && !provisioningUri && (
+        {enroll.isPending && (
           <div className="mt-6">
             <ListSkeleton rows={3} />
+          </div>
+        )}
+
+        {enroll.isError && (
+          <div className="mt-6 space-y-3">
+            <p className="text-sm text-danger" role="alert">
+              Could not start MFA setup. Please try again.
+            </p>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => enroll.refetch()}
+            >
+              Retry
+            </Button>
           </div>
         )}
 

@@ -4,6 +4,7 @@ export const queryKeys = {
   auth: {
     all: ["auth"] as const,
     me: () => [...queryKeys.auth.all, "me"] as const,
+    mfaEnroll: () => [...queryKeys.auth.all, "mfa-enroll"] as const,
   },
   organization: {
     all: ["organization"] as const,
