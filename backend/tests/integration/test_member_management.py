@@ -25,6 +25,8 @@ from vaultlog.domain.organizations.exceptions import MemberConflictError
 from vaultlog.infrastructure.email.logging_sender import LoggingEmailSender
 from vaultlog.shared.config import get_settings
 
+SECOND_OWNER_USER = uuid.UUID("99999999-9999-9999-9999-999999999999")
+SECOND_OWNER_MEMBERSHIP = uuid.UUID("aaaaaaaa-9999-9999-9999-999999999999")
 SECOND_ADMIN_USER = uuid.UUID("55555555-5555-5555-5555-555555555555")
 SECOND_ADMIN_MEMBERSHIP = uuid.UUID("aaaaaaaa-5555-5555-5555-555555555555")
 
@@ -32,6 +34,32 @@ SECOND_ADMIN_MEMBERSHIP = uuid.UUID("aaaaaaaa-5555-5555-5555-555555555555")
 @pytest.fixture()
 async def rbac_tenant(owner_engine, app_engine):
     await seed_rbac_tenant(owner_engine, app_engine)
+
+
+async def _seed_second_owner(owner_engine) -> None:
+    async with owner_engine.begin() as conn:
+        await conn.execute(
+            text(
+                """
+                INSERT INTO app_user (id, email, password_hash)
+                VALUES (:id, 'owner2@rbac.test', :hash)
+                """
+            ),
+            {"id": SECOND_OWNER_USER, "hash": PASSWORD_HASH},
+        )
+        await conn.execute(
+            text("SELECT set_config('app.current_tenant', :t, true)"),
+            {"t": str(ORG_ID)},
+        )
+        await conn.execute(
+            text(
+                """
+                INSERT INTO membership (id, tenant_id, user_id, role)
+                VALUES (:mid, :t, :uid, 'owner')
+                """
+            ),
+            {"mid": SECOND_OWNER_MEMBERSHIP, "t": ORG_ID, "uid": SECOND_OWNER_USER},
+        )
 
 
 async def _seed_second_admin(owner_engine) -> None:
@@ -124,10 +152,11 @@ async def test_owner_can_remove_admin(app_engine, rbac_tenant) -> None:
 
 @pytest.mark.asyncio
 async def test_owner_cannot_remove_owner(app_engine, rbac_tenant) -> None:
+    await _seed_second_owner(app_engine)
     remove = _remove_member(app_engine)
     with pytest.raises(MemberConflictError, match="Cannot remove owner"):
         await remove.execute(
-            make_actor(OWNER_USER, ORG_ID),
+            make_actor(SECOND_OWNER_USER, ORG_ID),
             OWNER_MEMBERSHIP,
             step_up_proven=True,
         )
