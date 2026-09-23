@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
@@ -16,11 +16,19 @@ from vaultlog.presentation.dependencies import (
 router = APIRouter(prefix="/audit-events", tags=["audit"])
 
 
+class AuditActorResponse(BaseModel):
+    user_id: uuid.UUID
+    email: str | None
+    role: str | None
+    status: Literal["active", "former_member", "unknown"]
+
+
 class AuditEventResponse(BaseModel):
     id: uuid.UUID
     tenant_id: uuid.UUID
     sequence: int
     actor_user_id: uuid.UUID | None
+    actor: AuditActorResponse | None
     session_id: uuid.UUID | None
     action: str
     target_type: str
@@ -52,6 +60,16 @@ async def list_audit_events(
             tenant_id=event.tenant_id,
             sequence=event.sequence,
             actor_user_id=event.actor_user_id,
+            actor=(
+                AuditActorResponse(
+                    user_id=event.actor.user_id,
+                    email=event.actor.email,
+                    role=event.actor.role,
+                    status=event.actor.status.value,
+                )
+                if event.actor is not None
+                else None
+            ),
             session_id=event.session_id,
             action=event.action,
             target_type=event.target_type,

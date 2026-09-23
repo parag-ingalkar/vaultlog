@@ -86,6 +86,7 @@ class EnrollmentResult:
 @dataclass(frozen=True)
 class UserCapabilities:
     can_create_vaults: bool
+    can_write_secrets: bool
     can_manage_members: bool
     can_manage_invitations: bool
     can_read_audit: bool

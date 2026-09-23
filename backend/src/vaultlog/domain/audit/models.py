@@ -13,6 +13,12 @@ class AuditOutcome(StrEnum):
     DENIED = "denied"
 
 
+class AuditActorStatus(StrEnum):
+    ACTIVE = "active"
+    FORMER_MEMBER = "former_member"
+    UNKNOWN = "unknown"
+
+
 @dataclass(frozen=True)
 class ActorContext:
     user_id: uuid.UUID
@@ -45,6 +51,14 @@ class AuditEvent:
 
 
 @dataclass(frozen=True)
+class AuditActorView:
+    user_id: uuid.UUID
+    email: str | None
+    role: str | None
+    status: AuditActorStatus
+
+
+@dataclass(frozen=True)
 class AuditEventView:
     """API/read-model surface without hash fields."""
 
@@ -59,6 +73,7 @@ class AuditEventView:
     outcome: str
     metadata: dict[str, Any]
     occurred_at: datetime
+    actor: AuditActorView | None = None
 
 
 @dataclass(frozen=True)

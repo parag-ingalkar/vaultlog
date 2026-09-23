@@ -4,6 +4,7 @@ import uuid
 
 import pytest
 from sqlalchemy import select, text
+from starlette.testclient import TestClient
 
 from tests.integration.fixtures.audit import make_actor, tenant_uow_factory
 from tests.integration.fixtures.constants import TENANT_B
@@ -34,6 +35,7 @@ from vaultlog.infrastructure.security.vault_crypto import (
 from vaultlog.shared.config import get_settings
 
 PASSWORD = "correct horse battery"
+RBAC_PASSWORD = "correct horse battery"
 settings = get_settings()
 
 
@@ -229,3 +231,42 @@ async def test_delete_requires_step_up_in_service(app_engine, rbac_tenant) -> No
             meta.id,
             step_up_proven=False,
         )
+
+
+async def _login_rbac_user(login_user, email: str) -> str:
+    result = await login_user.execute(email, RBAC_PASSWORD, "pytest")
+    assert result.pair is not None
+    return result.pair.access_token
+
+
+async def test_viewer_cannot_create_secret_via_api(
+    client: TestClient,
+    login_user,
+    rbac_tenant,
+) -> None:
+    token = await _login_rbac_user(login_user, "viewer@rbac.test")
+    response = client.post(
+        f"/api/v1/vaults/{VAULT_ID}/secrets",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"name": "blocked", "value": "secret", "description": None},
+    )
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "forbidden"
+
+
+async def test_member_can_create_secret_via_api(
+    client: TestClient,
+    login_user,
+    rbac_tenant,
+) -> None:
+    token = await _login_rbac_user(login_user, "member@rbac.test")
+    response = client.post(
+        f"/api/v1/vaults/{VAULT_ID}/secrets",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "name": f"member-secret-{uuid.uuid4().hex[:8]}",
+            "value": "secret",
+            "description": None,
+        },
+    )
+    assert response.status_code == 201

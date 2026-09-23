@@ -9,8 +9,10 @@ from vaultlog.application.ports.tenant_unit_of_work import TenantUnitOfWork
 from vaultlog.domain.access.exceptions import ForbiddenError
 from vaultlog.domain.access.models import Action
 from vaultlog.domain.access.services import PolicyService
+from vaultlog.domain.audit.enrichment import build_actor_view, enrich_events_with_actors
 from vaultlog.domain.audit.models import (
     ActorContext,
+    AuditActorView,
     AuditEventView,
     AuditOutcome,
     VerificationResult,
@@ -77,13 +79,31 @@ class ListAuditEvents:
             policy = build_policy_service(uow)
             await policy.require_org(actor.user_id, actor.tenant_id, Action.AUDIT_READ)
             audit = build_audit_service(uow)
-            return await audit.list_events(
+            events = await audit.list_events(
                 actor.tenant_id,
                 action=action,
                 target_id=target_id,
                 before_sequence=before_sequence,
                 limit=limit,
             )
+            return await _enrich_with_actors(uow, actor.tenant_id, events)
+
+
+async def _enrich_with_actors(
+    uow: TenantUnitOfWork,
+    tenant_id: uuid.UUID,
+    events: list[AuditEventView],
+) -> list[AuditEventView]:
+    user_ids = {event.actor_user_id for event in events if event.actor_user_id is not None}
+    if not user_ids:
+        return events
+
+    lookups = await uow.members.resolve_actors(tenant_id, user_ids)
+    actors: dict[uuid.UUID, AuditActorView] = {
+        user_id: build_actor_view(user_id, email=email, role=role)
+        for user_id, (email, role) in lookups.items()
+    }
+    return enrich_events_with_actors(events, actors)
 
 
 class VerifyTenantChain:

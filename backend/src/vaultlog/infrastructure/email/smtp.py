@@ -31,7 +31,9 @@ class SmtpEmailSender:
         message.set_content(
             f"You have been invited to join {organization_name} on VaultLog as {role.value}.\n\n"
             f"Accept your invitation:\n{invite_url}\n\n"
-            "This link expires in 7 days."
+            "This link expires in 7 days.",
+            # Avoid quoted-printable soft line breaks inside the invite URL.
+            cte="8bit",
         )
 
         await aiosmtplib.send(

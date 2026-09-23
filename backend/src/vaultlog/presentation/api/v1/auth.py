@@ -114,6 +114,7 @@ class OrganizationSummary(BaseModel):
 
 class UserCapabilitiesResponse(BaseModel):
     can_create_vaults: bool
+    can_write_secrets: bool
     can_manage_members: bool
     can_manage_invitations: bool
     can_read_audit: bool
@@ -210,6 +211,7 @@ async def get_me(
         amr=list(view.amr),
         capabilities=UserCapabilitiesResponse(
             can_create_vaults=view.capabilities.can_create_vaults,
+            can_write_secrets=view.capabilities.can_write_secrets,
             can_manage_members=view.capabilities.can_manage_members,
             can_manage_invitations=view.capabilities.can_manage_invitations,
             can_read_audit=view.capabilities.can_read_audit,
