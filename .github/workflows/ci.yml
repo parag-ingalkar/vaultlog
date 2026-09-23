@@ -47,7 +47,9 @@ jobs:
       - uses: astral-sh/setup-uv@v5
       - run: uv sync --all-groups
       - name: Dependency vulnerability audit
-        run: uv run pip-audit --strict
+        run: |
+          uv export --frozen --all-groups --no-emit-project --no-header --no-annotate -o /tmp/requirements-audit.txt
+          uv run pip-audit --strict --require-hashes -r /tmp/requirements-audit.txt
       - name: Secret scanning
         uses: gitleaks/gitleaks-action@v2
         env:
